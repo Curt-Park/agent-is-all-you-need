@@ -20,16 +20,16 @@ Every line of code in this project was written using the agent built within this
  
 Build the agent harness step by step, evaluating every piece you add.
  
-| Ch. | Focus | Progress |
-| :-- | :---- | :--- |
-| 01 | Bash Agent | ✅ |
-| 02 | Multi-Tool Agent | ✅ |
-| 03 | Planning Agent | |
-| 04 | Subagent | |
-| 05 | Skills Agent | |
-| 06 | Context Compact | |
-| 07 | Tasks (Persistence) | |
-| 08 | Background Tasks | |
+| Ch. | Focus | Code | Tests | Progress |
+| :-- | :---- | :--- | :---- | :--- |
+| 01 | Bash Agent | [ch_01_bash_agent.py](ch_01_bash_agent.py) | [test_bash_agent.py](tests/test_bash_agent.py) | ✅ |
+| 02 | Multi-Tool Agent | [ch_02_multi_tool_agent.py](ch_02_multi_tool_agent.py) | [test_multi_tool_agent.py](tests/test_multi_tool_agent.py) | ✅ |
+| 03 | Planning Agent | | | |
+| 04 | Subagent | | | |
+| 05 | Skills Agent | | | |
+| 06 | Context Compact | | | |
+| 07 | Tasks (Persistence) | | | |
+| 08 | Background Tasks | | | |
  
 ### Part II — Serve & Verify
  
@@ -77,10 +77,10 @@ mise trust && mise install && uv sync
 cp .env.example .env   # fill in your key — works with any OpenAI-compatible API
  
 # 5. Start
-python ch_01_bash_agent.py
+python ch_01_bash_agent.py "List current files"
 
 # 6. Run tests
-pytest tests/test_bash_agent.py
+pytest
 ```
  
 ## Credits

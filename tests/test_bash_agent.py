@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from ch_01_build_bash_agent import run_agent
+from ch_01_bash_agent import run_agent
 
 
 @pytest.fixture
