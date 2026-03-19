@@ -48,51 +48,6 @@ MODEL = os.getenv("LLM_MODEL_ID")
 
 
 # ---------------------------------------------------------------------------
-# Tool registry — @tool decorator builds OpenAI schemas + dispatch in one place
-# ---------------------------------------------------------------------------
-
-TOOLS: list[dict] = []  # OpenAI function-calling schemas
-DISPATCH: dict[str, callable] = {}  # name -> handler(**kwargs)
-
-
-def tool(name: str, description: str, params: dict[str, str | dict]):
-    """Decorator: registers a function as an agent tool.
-
-    params maps parameter names to either:
-      - a string (shorthand for a required string param with that description)
-      - a dict with keys: description, type (default "string"), required (default True)
-
-    The decorated function receives **kwargs directly from the LLM's JSON args.
-    """
-    properties = {}
-    required = []
-    for pname, pspec in params.items():
-        if isinstance(pspec, str):
-            properties[pname] = {"type": "string", "description": pspec}
-            required.append(pname)
-        else:
-            properties[pname] = {"type": pspec.get("type", "string"), "description": pspec["description"]}
-            if pspec.get("required", True):
-                required.append(pname)
-
-    schema = {
-        "type": "function",
-        "function": {
-            "name": name,
-            "description": description,
-            "parameters": {"type": "object", "properties": properties, "required": required},
-        },
-    }
-
-    def decorator(func):
-        TOOLS.append(schema)
-        DISPATCH[name] = func
-        return func
-
-    return decorator
-
-
-# ---------------------------------------------------------------------------
 # Context gathering
 # ---------------------------------------------------------------------------
 
@@ -146,6 +101,51 @@ dedicated tool (e.g. running tests, installing packages, git commands).
 
 
 SYSTEM_PROMPT = gather_context()
+
+
+# ---------------------------------------------------------------------------
+# Tool registry — @tool decorator builds OpenAI schemas + dispatch in one place
+# ---------------------------------------------------------------------------
+
+TOOLS: list[dict] = []  # OpenAI function-calling schemas
+DISPATCH: dict[str, callable] = {}  # name -> handler(**kwargs)
+
+
+def tool(name: str, description: str, params: dict[str, str | dict]):
+    """Decorator: registers a function as an agent tool.
+
+    params maps parameter names to either:
+      - a string (shorthand for a required string param with that description)
+      - a dict with keys: description, type (default "string"), required (default True)
+
+    The decorated function receives **kwargs directly from the LLM's JSON args.
+    """
+    properties = {}
+    required = []
+    for pname, pspec in params.items():
+        if isinstance(pspec, str):
+            properties[pname] = {"type": "string", "description": pspec}
+            required.append(pname)
+        else:
+            properties[pname] = {"type": pspec.get("type", "string"), "description": pspec["description"]}
+            if pspec.get("required", True):
+                required.append(pname)
+
+    schema = {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {"type": "object", "properties": properties, "required": required},
+        },
+    }
+
+    def decorator(func):
+        TOOLS.append(schema)
+        DISPATCH[name] = func
+        return func
+
+    return decorator
 
 
 # ---------------------------------------------------------------------------
