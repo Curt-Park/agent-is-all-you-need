@@ -96,11 +96,10 @@ def tool(name: str, description: str, params: dict[str, str | dict]):
 # Context gathering
 # ---------------------------------------------------------------------------
 
+
 def _shell(command: str) -> str:
     """Run a shell command quietly and return stdout."""
-    return subprocess.run(
-        command, shell=True, text=True, capture_output=True, timeout=5
-    ).stdout.strip()
+    return subprocess.run(command, shell=True, text=True, capture_output=True, timeout=5).stdout.strip()
 
 
 def _git_files() -> list[str]:
@@ -125,12 +124,7 @@ def gather_context() -> str:
         branch = _shell("git branch --show-current")
         status = _shell("git status --short")
         log = _shell("git log --oneline -5")
-        git_info = (
-            f"\n## Git\n"
-            f"Branch: {branch}\n"
-            f"Status:\n{status or '(clean)'}\n"
-            f"Recent commits:\n{log}"
-        )
+        git_info = f"\n## Git\nBranch: {branch}\nStatus:\n{status or '(clean)'}\nRecent commits:\n{log}"
     except Exception:
         pass
 
@@ -158,9 +152,14 @@ SYSTEM_PROMPT = gather_context()
 # Tool implementations — each @tool declaration is the single source of truth
 # ---------------------------------------------------------------------------
 
-@tool("bash", "Run a shell command. Use for git, tests, installs, or anything without a dedicated tool.", {
-    "command": "The shell command to execute.",
-})
+
+@tool(
+    "bash",
+    "Run a shell command. Use for git, tests, installs, or anything without a dedicated tool.",
+    {
+        "command": "The shell command to execute.",
+    },
+)
 def run_bash_command(command: str) -> str:
     print(f"\033[96m$ {command}\033[0m")
     try:
@@ -170,11 +169,15 @@ def run_bash_command(command: str) -> str:
         return f"Error: {e}"
 
 
-@tool("read_file", "Read a file with numbered lines. Use offset/limit for large files.", {
-    "path": "File path (relative to working directory).",
-    "offset": {"description": "1-based start line.", "type": "integer", "required": False},
-    "limit": {"description": "Max lines to return.", "type": "integer", "required": False},
-})
+@tool(
+    "read_file",
+    "Read a file with numbered lines. Use offset/limit for large files.",
+    {
+        "path": "File path (relative to working directory).",
+        "offset": {"description": "1-based start line.", "type": "integer", "required": False},
+        "limit": {"description": "Max lines to return.", "type": "integer", "required": False},
+    },
+)
 def read_file(path: str, offset: int = 1, limit: int | None = None) -> str:
     print(f"\033[94m[read] {path}" + (f" (lines {offset}-{offset + limit - 1})" if limit else "") + "\033[0m")
     try:
@@ -187,10 +190,14 @@ def read_file(path: str, offset: int = 1, limit: int | None = None) -> str:
         return f"Error: {e}"
 
 
-@tool("write_file", "Create or overwrite a file with the given content.", {
-    "path": "File path (relative to working directory).",
-    "content": "Full file content to write.",
-})
+@tool(
+    "write_file",
+    "Create or overwrite a file with the given content.",
+    {
+        "path": "File path (relative to working directory).",
+        "content": "Full file content to write.",
+    },
+)
 def write_file(path: str, content: str) -> str:
     print(f"\033[94m[write] {path}\033[0m")
     try:
@@ -202,11 +209,15 @@ def write_file(path: str, content: str) -> str:
         return f"Error: {e}"
 
 
-@tool("edit_file", "Edit a file by replacing an exact unique string match.", {
-    "path": "File path (relative to working directory).",
-    "old_string": "Exact text to find (must be unique in the file).",
-    "new_string": "Replacement text.",
-})
+@tool(
+    "edit_file",
+    "Edit a file by replacing an exact unique string match.",
+    {
+        "path": "File path (relative to working directory).",
+        "old_string": "Exact text to find (must be unique in the file).",
+        "new_string": "Replacement text.",
+    },
+)
 def edit_file(path: str, old_string: str, new_string: str) -> str:
     print(f"\033[94m[edit] {path}\033[0m")
     try:
@@ -222,9 +233,13 @@ def edit_file(path: str, old_string: str, new_string: str) -> str:
         return f"Error: {e}"
 
 
-@tool("glob", "Find files matching a glob pattern (e.g. '**/*.py'). Returns matching paths.", {
-    "pattern": "Glob pattern to match files.",
-})
+@tool(
+    "glob",
+    "Find files matching a glob pattern (e.g. '**/*.py'). Returns matching paths.",
+    {
+        "pattern": "Glob pattern to match files.",
+    },
+)
 def glob_search(pattern: str) -> str:
     print(f"\033[94m[glob] {pattern}\033[0m")
     files = _git_files()
@@ -235,11 +250,15 @@ def glob_search(pattern: str) -> str:
     return "\n".join(matches) if matches else "No matches found."
 
 
-@tool("grep", "Search file contents for a regex pattern. Returns file:line:content matches.", {
-    "pattern": "Regex pattern to search for.",
-    "path": {"description": "File or directory to search in. Default: current directory.", "required": False},
-    "include": {"description": "Glob to filter files (e.g. '*.py').", "required": False},
-})
+@tool(
+    "grep",
+    "Search file contents for a regex pattern. Returns file:line:content matches.",
+    {
+        "pattern": "Regex pattern to search for.",
+        "path": {"description": "File or directory to search in. Default: current directory.", "required": False},
+        "include": {"description": "Glob to filter files (e.g. '*.py').", "required": False},
+    },
+)
 def grep_search(pattern: str, path: str = ".", include: str | None = None) -> str:
     print(f"\033[94m[grep] /{pattern}/" + (f" in {path}" if path != "." else "") + "\033[0m")
     cmd = f"grep -rn -E {json.dumps(pattern)} {json.dumps(path)}"
@@ -255,9 +274,13 @@ def grep_search(pattern: str, path: str = ".", include: str | None = None) -> st
         return f"Error: {e}"
 
 
-@tool("websearch", "Search the web using DuckDuckGo. Use for external information not in the project.", {
-    "query": "Search query.",
-})
+@tool(
+    "websearch",
+    "Search the web using DuckDuckGo. Use for external information not in the project.",
+    {
+        "query": "Search query.",
+    },
+)
 def perform_websearch(query: str) -> str:
     print(f"\033[92m[websearch] {query}\033[0m")
     try:
@@ -270,6 +293,7 @@ def perform_websearch(query: str) -> str:
 # ---------------------------------------------------------------------------
 # Execution
 # ---------------------------------------------------------------------------
+
 
 def execute_tool_call(tool_call) -> str:
     """Parse a tool call, dispatch to the right handler, and return the output."""
@@ -286,7 +310,8 @@ def execute_tool_call(tool_call) -> str:
 # Agent loop
 # ---------------------------------------------------------------------------
 
-def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None:
+
+def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> dict:
     """Core agent loop: orchestrates the LLM turns and tool execution."""
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -318,18 +343,22 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None
         print("Task marked complete.")
         break
 
+    # Save the trajectory as a JSON file
     trajectory = {
         "task": task,
         "model": MODEL,
         "max_steps": max_steps,
         "steps_used": step + 1,
         "timestamp": datetime.now(UTC).isoformat(),
-        "messages": messages,
+        "messages": [m if isinstance(m, dict) else m.model_dump() for m in messages],
     }
+
     Path("logs").mkdir(exist_ok=True)
     log_file = Path("logs") / f"trajectory_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
-    log_file.write_text(json.dumps(trajectory, indent=2))
+    log_file.write_text(json.dumps(trajectory, indent=2, default=str))
     print(f"\nTrajectory saved: {log_file}")
+
+    return trajectory
 
 
 def main():
