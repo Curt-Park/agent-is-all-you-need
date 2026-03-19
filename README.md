@@ -71,13 +71,16 @@ cd agent-is-all-you-need
 curl https://mise.run | sh
  
 # 3. Set up Python env
-mise trust && mise install
+mise trust && mise install && uv sync
  
 # 4. Configure API key
 cp .env.example .env   # fill in your key — works with any OpenAI-compatible API
  
 # 5. Start
-python 01_build_bash_agent.py
+python ch_01_build_bash_agent.py
+
+# 6. Run tests
+pytest tests/test_bash_agent.py
 ```
  
 ## Credits

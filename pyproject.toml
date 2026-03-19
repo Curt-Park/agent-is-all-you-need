@@ -10,13 +10,8 @@ authors = [
 dependencies = [
     "openai >= 2.28.0",
     "python-dotenv >= 1.1.0",
-]
-
-[project.optional-dependencies]
-dev = [
     "ruff>=0.14.3",
     "pytest>=8.4.2",
-    "pytest-cov>=7.0.0",
 ]
 
 [tool.ruff]
@@ -43,7 +38,4 @@ pythonpath = ["."]
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=run",
-    "--cov-report=term-missing",
-    "--cov-report=html",
 ]
