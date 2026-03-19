@@ -22,8 +22,8 @@ Build the agent harness step by step, evaluating every piece you add.
  
 | Ch. | Focus | Code | Tests | Progress |
 | :-- | :---- | :--- | :---- | :--- |
-| 01 | Bash Agent | [ch_01_bash_agent.py](ch_01_bash_agent.py) | [test_bash_agent.py](tests/test_bash_agent.py) | ✅ |
-| 02 | Multi-Tool Agent | [ch_02_multi_tool_agent.py](ch_02_multi_tool_agent.py) | [test_multi_tool_agent.py](tests/test_multi_tool_agent.py) | ✅ |
+| 01 | Bash Agent | [ch_01_bash_agent.py](ch_01_bash_agent.py) | [test_ch_01_bash_agent.py](tests/test_ch_01_bash_agent.py) | ✅ |
+| 02 | Multi-Tool Agent | [ch_02_multi_tool_agent.py](ch_02_multi_tool_agent.py) | [test_ch_02_multi_tool_agent.py](tests/test_ch_02_multi_tool_agent.py) | ✅ |
 | 03 | Planning Agent | | | |
 | 04 | Subagent | | | |
 | 05 | Skills Agent | | | |
@@ -35,22 +35,22 @@ Build the agent harness step by step, evaluating every piece you add.
  
 Wrap the agent in a production API and build the feedback loops.
  
-| Ch. | Focus | Progress |
-| :-- | :---- | :--- |
-| 09 | API Server + SSE Streaming + Docker Sandboxing | |
-| 10 | Cost Control + Model Routing + Semantic Caching | |
-| 11 | Observability + Replay + Regression Loop | |
- 
+| Ch. | Focus | Code | Tests | Progress |
+| :-- | :---- | :--- | :---- | :--- |
+| 09 | API Server + SSE Streaming + Docker Sandboxing | | | |
+| 10 | Cost Control + Model Routing + Semantic Caching | | | |
+| 11 | Observability + Replay + Regression Loop | | | |
+
 ### Part III — Learn & Personalize
- 
+
 Turn production traces into training signal. Make the agent evolve.
- 
-| Ch. | Focus | Progress |
-| :-- | :---- | :--- |
-| 12 | Trajectory Collection + Heuristic Personalization | |
-| 13 | Contextual Bandit for Tool Selection | |
-| 14 | DPO for Agent Behavior Alignment | |
-| 15 | Closed-Loop Personalization Pipeline | |
+
+| Ch. | Focus | Code | Tests | Progress |
+| :-- | :---- | :--- | :---- | :--- |
+| 12 | Trajectory Collection + Heuristic Personalization | | | |
+| 13 | Contextual Bandit for Tool Selection | | | |
+| 14 | DPO for Agent Behavior Alignment | | | |
+| 15 | Closed-Loop Personalization Pipeline | | | |
  
 ## Key Concepts
  
