@@ -20,37 +20,37 @@ Every line of code in this project was written using the agent built within this
  
 Build the agent harness step by step, evaluating every piece you add.
  
-| Ch. | Build | Eval |
+| Ch. | Focus | Progress |
 | :-- | :---- | :--- |
 | 01 | Bash Agent | ✅ |
 | 02 | Multi-Tool Agent | ✅ |
-| 03 | Planning Agent | Plan Quality (LLM-as-Judge) |
-| 04 | Subagent | Multi-Agent Attribution |
-| 05 | Skills Agent | A/B Test (Skill Impact) |
-| 06 | Context Compact | Compression Quality |
-| 07 | Tasks (Persistence) | Dependency Correctness |
-| 08 | Background Tasks | Throughput & Concurrency |
+| 03 | Planning Agent | |
+| 04 | Subagent | |
+| 05 | Skills Agent | |
+| 06 | Context Compact | |
+| 07 | Tasks (Persistence) | |
+| 08 | Background Tasks | |
  
 ### Part II — Serve & Verify
  
 Wrap the agent in a production API and build the feedback loops.
  
-| Ch. | Focus |
-| :-- | :---- |
-| 09 | API Server + SSE Streaming + Docker Sandboxing |
-| 10 | Cost Control + Model Routing + Semantic Caching |
-| 11 | Observability + Replay + Regression Loop |
+| Ch. | Focus | Progress |
+| :-- | :---- | :--- |
+| 09 | API Server + SSE Streaming + Docker Sandboxing | |
+| 10 | Cost Control + Model Routing + Semantic Caching | |
+| 11 | Observability + Replay + Regression Loop | |
  
 ### Part III — Learn & Personalize
  
 Turn production traces into training signal. Make the agent evolve.
  
-| Ch. | Focus |
-| :-- | :---- |
-| 12 | Trajectory Collection + Heuristic Personalization |
-| 13 | Contextual Bandit for Tool Selection |
-| 14 | DPO for Agent Behavior Alignment |
-| 15 | Closed-Loop Personalization Pipeline |
+| Ch. | Focus | Progress |
+| :-- | :---- | :--- |
+| 12 | Trajectory Collection + Heuristic Personalization | |
+| 13 | Contextual Bandit for Tool Selection | |
+| 14 | DPO for Agent Behavior Alignment | |
+| 15 | Closed-Loop Personalization Pipeline | |
  
 ## Key Concepts
  
