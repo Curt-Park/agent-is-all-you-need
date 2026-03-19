@@ -279,12 +279,13 @@ def grep_search(pattern: str, path: str = ".", include: str | None = None) -> st
     "Search the web using DuckDuckGo. Use for external information not in the project.",
     {
         "query": "Search query.",
+        "max_results": "The maximum number of results. Default: 3",
     },
 )
-def perform_websearch(query: str) -> str:
+def perform_websearch(query: str, max_results: int = 3) -> str:
     print(f"\033[92m[websearch] {query}\033[0m")
     try:
-        results = DDGS().text(query, max_results=3)
+        results = DDGS().text(query, max_results=max_results)
         return json.dumps(results, indent=2)
     except Exception as e:
         return f"Error: {e}"
