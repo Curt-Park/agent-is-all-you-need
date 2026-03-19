@@ -22,8 +22,8 @@ Build the agent harness step by step, evaluating every piece you add.
  
 | Ch. | Build | Eval |
 | :-- | :---- | :--- |
-| 01 | Bash Agent | Pass / Fail |
-| 02 | Multi-Tool Agent | Step-wise Efficiency |
+| 01 | Bash Agent | ✅ |
+| 02 | Multi-Tool Agent | ✅ |
 | 03 | Planning Agent | Plan Quality (LLM-as-Judge) |
 | 04 | Subagent | Multi-Agent Attribution |
 | 05 | Skills Agent | A/B Test (Skill Impact) |
