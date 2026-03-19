@@ -9,7 +9,7 @@ from ch_01_build_bash_agent import run_agent
 
 @pytest.fixture
 def workspace():
-    ws = Path("test_workspace").resolve()
+    ws = Path(f"test_workspace_{os.getpid()}").resolve()
     if ws.exists():
         shutil.rmtree(ws)
     ws.mkdir()

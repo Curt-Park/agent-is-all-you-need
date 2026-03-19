@@ -12,6 +12,7 @@ dependencies = [
     "python-dotenv >= 1.1.0",
     "ruff>=0.14.3",
     "pytest>=8.4.2",
+    "pytest-xdist>=3.8.0",
 ]
 
 [tool.ruff]
@@ -38,4 +39,6 @@ pythonpath = ["."]
 addopts = [
     "--strict-markers",
     "--strict-config",
+    "-n", "auto",
+    "--dist=loadfile",
 ]
