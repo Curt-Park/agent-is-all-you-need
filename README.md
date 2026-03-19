@@ -77,7 +77,7 @@ mise trust && mise install && uv sync
 cp .env.example .env   # fill in your key — works with any OpenAI-compatible API
  
 # 5. Start
-python ch_01_build_bash_agent.py
+python ch_01_bash_agent.py
 
 # 6. Run tests
 pytest tests/test_bash_agent.py
