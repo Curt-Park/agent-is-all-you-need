@@ -31,9 +31,9 @@ from openai import OpenAI
 # Initialize client with env vars
 load_dotenv()
 client = OpenAI(base_url=os.getenv("LLM_BASE_URL"), api_key=os.getenv("LLM_API_KEY"))
-MODEL = os.getenv("LLM_MODEL_ID")
 
-# Define prompts and tools for the LLM
+# Define model, prompts, and tools for the LLM
+MODEL = os.getenv("LLM_MODEL_ID")
 SYSTEM_PROMPT = f"You are a coding agent at {os.getcwd()}. Use bash to solve tasks."
 TOOLS = [
     {
@@ -107,7 +107,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("task", help="Task to perform")
-    parser.add_argument("--max-steps", type=int, default=10)
+    parser.add_argument("--max-steps", type=int, default=30)
     parser.add_argument("--hitl", action="store_true", help="Enable human-in-the-loop")
     args = parser.parse_args()
 
