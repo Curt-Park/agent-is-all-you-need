@@ -86,12 +86,12 @@ def gather_context() -> str:
 
     files = _git_files() or sorted(p.name for p in Path(cwd).iterdir() if not p.name.startswith("."))
 
+    # Git info with graceful fallback
     try:
-        git_info = (
-            f"\n## Git\nBranch: {s('git branch --show-current')}"
-            f"\nStatus: {s('git status --short') or '(clean)'}"
-            f"\nRecent commits:\n{s('git log --oneline -5')}"
-        )
+        branch = s("git branch --show-current")
+        status = s("git status --short") or "(clean)"
+        commits = s("git log --oneline -5")
+        git_info = f"\n## Git\nBranch: {branch}\nStatus: {status}\nRecent commits:\n{commits}"
     except Exception:
         git_info = ""
 
@@ -116,11 +116,23 @@ You are a coding agent. Solve tasks using the provided tools.
 - Platform: {platform.system()} {platform.release()}
 
 ## File tree
-{chr(10).join(files) if files else "(empty)"}
+{"\n".join(files) if files else "(empty)"}
 {git_info}"""
 
 
 SYSTEM_PROMPT = gather_context()
+
+
+# ---------------------------------------------------------------------------
+# Color codes for terminal output
+# ---------------------------------------------------------------------------
+
+CYAN = "\033[96m"
+BLUE = "\033[94m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+MAGENTA = "\033[95m"
+RESET = "\033[0m"
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +191,7 @@ def tool(func):
 @tool
 def bash(command: str) -> str:
     """Run a shell command. Use for git, tests, installs, or anything without a dedicated tool."""
-    print(f"\033[96m$ {command}\033[0m")
+    print(f"{CYAN}$ {command}{RESET}")
     try:
         res = _shell(command)
         return res.stdout or res.stderr or "(no output)"
@@ -190,13 +202,17 @@ def bash(command: str) -> str:
 @tool
 def read(path: str, offset: int = 1, limit: int | None = None) -> str:
     """Read a file with numbered lines. Use offset/limit for large files."""
-    print(f"\033[94m[read] {path}" + (f" (lines {offset}-{offset + limit - 1})" if limit else "") + "\033[0m")
+    suffix = f" (lines {offset}-{offset + limit - 1})" if limit else ""
+    print(f"{BLUE}[read] {path}{suffix}{RESET}")
     try:
-        lines = Path(path).read_text().splitlines()
-        start = max(0, offset - 1)
-        end = start + limit if limit else len(lines)
-        numbered = [f"{i + 1:>6}\t{line}" for i, line in enumerate(lines[start:end], start=start)]
-        return "\n".join(numbered) if numbered else "(empty file)"
+        text = Path(path).read_text()
+        if not text:
+            return "(empty file)"
+        all_lines = text.splitlines()
+        start_idx = max(0, offset - 1)
+        end_idx = start_idx + limit if limit else len(all_lines)
+        slice_ = all_lines[start_idx:end_idx]
+        return "\n".join(f"{i + 1:>6}\t{line}" for i, line in enumerate(slice_, start=start_idx))
     except Exception as e:
         return f"Error: {e}"
 
@@ -204,7 +220,7 @@ def read(path: str, offset: int = 1, limit: int | None = None) -> str:
 @tool
 def write(path: str, content: str) -> str:
     """Create or overwrite a file with the given content."""
-    print(f"\033[94m[write] {path}\033[0m")
+    print(f"{BLUE}[write] {path}{RESET}")
     try:
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -217,7 +233,7 @@ def write(path: str, content: str) -> str:
 @tool
 def edit(path: str, old_string: str, new_string: str) -> str:
     """Edit a file by replacing an exact unique string match."""
-    print(f"\033[94m[edit] {path}\033[0m")
+    print(f"{BLUE}[edit] {path}{RESET}")
     try:
         text = Path(path).read_text()
         count = text.count(old_string)
@@ -234,7 +250,7 @@ def edit(path: str, old_string: str, new_string: str) -> str:
 @tool
 def glob(pattern: str) -> str:
     """Find files matching a glob pattern (e.g. '**/*.py'). Returns matching paths."""
-    print(f"\033[94m[glob] {pattern}\033[0m")
+    print(f"{BLUE}[glob] {pattern}{RESET}")
     files = _git_files()
     if files:
         matches = [f for f in files if fnmatch.fnmatch(f, pattern)]
@@ -246,10 +262,11 @@ def glob(pattern: str) -> str:
 @tool
 def grep(pattern: str, path: str = ".", include: str | None = None) -> str:
     """Search file contents for a regex pattern. Returns file:line:content matches."""
-    print(f"\033[94m[grep] /{pattern}/" + (f" in {path}" if path != "." else "") + "\033[0m")
-    cmd = f"grep -rn -E {json.dumps(pattern)} {json.dumps(path)}"
+    path_suffix = f" in {path}" if path != "." else ""
+    print(f"{BLUE}[grep] /{pattern}/{path_suffix}{RESET}")
+    cmd = f"grep -rn -E '{pattern}' '{path}'"
     if include:
-        cmd += f" --include={json.dumps(include)}"
+        cmd += f" --include='{include}'"
     try:
         output = _shell(cmd, timeout=10).stdout.strip()
         # Limit output to 100 lines
@@ -262,7 +279,7 @@ def grep(pattern: str, path: str = ".", include: str | None = None) -> str:
 @tool
 def websearch(query: str, max_results: int = 3) -> str:
     """Search the web using DuckDuckGo. Use for external information not in the project."""
-    print(f"\033[92m[websearch] {query}\033[0m")
+    print(f"{GREEN}[websearch] {query}{RESET}")
     try:
         results = DDGS().text(query, max_results=max_results)
         return json.dumps(results, indent=2)
@@ -308,7 +325,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> dict
         messages.append(response.model_dump(exclude_none=True))
 
         if response.content:
-            print(f"\033[93mAgent:\033[0m {response.content}")
+            print(f"{YELLOW}Agent:{RESET} {response.content}")
 
         if response.tool_calls:
             for tool_call in response.tool_calls:
@@ -318,7 +335,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> dict
             continue
 
         if enable_hitl:
-            feedback = input("\033[95m[HITL] Provide feedback (or press Enter to finish): \033[0m")
+            feedback = input(f"{MAGENTA}[HITL] Provide feedback (or press Enter to finish): {RESET}")
             if feedback.strip():
                 messages.append({"role": "user", "content": feedback})
                 continue
@@ -326,14 +343,13 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> dict
         print("Task marked complete.")
         break
 
-    # Save the trajectory as a JSON file
     trajectory = {
         "task": task,
         "model": model,
         "max_steps": max_steps,
         "steps_used": step + 1,
         "timestamp": datetime.now(UTC).isoformat(),
-        "messages": [m if isinstance(m, dict) else m.model_dump() for m in messages],
+        "messages": messages,
     }
 
     Path("logs").mkdir(exist_ok=True)
@@ -351,6 +367,7 @@ def main():
     parser.add_argument("--hitl", action="store_true", help="Enable human-in-the-loop")
     args = parser.parse_args()
 
+    # print(TOOLS)
     run_agent(args.task, args.max_steps, args.hitl)
 
 

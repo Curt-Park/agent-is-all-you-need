@@ -1,29 +1,4 @@
-import os
-import shutil
-from pathlib import Path
-
-import pytest
-
 from ch_01_bash_agent import run_agent
-
-
-@pytest.fixture
-def workspace():
-    ws = Path(f"test_workspace_{os.getpid()}").resolve()
-    if ws.exists():
-        shutil.rmtree(ws)
-    ws.mkdir()
-
-    # Use environment variables if needed to point to the workspace
-    # or just chdir temporarily
-    original_cwd = os.getcwd()
-    os.chdir(ws)
-
-    yield ws
-
-    os.chdir(original_cwd)
-    if ws.exists():
-        shutil.rmtree(ws, ignore_errors=True)
 
 
 def test_run_agent_write(workspace):

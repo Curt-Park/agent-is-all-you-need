@@ -54,33 +54,44 @@ def _shell(command: str, timeout: int = 30) -> subprocess.CompletedProcess:
 
 
 # ---------------------------------------------------------------------------
+# Color codes for terminal output
+# ---------------------------------------------------------------------------
+
+CYAN = "\033[96m"
+YELLOW = "\033[93m"
+MAGENTA = "\033[95m"
+RESET = "\033[0m"
+
+
+# ---------------------------------------------------------------------------
 # Context gathering
 # ---------------------------------------------------------------------------
+
+
+def _run_quiet(cmd: str) -> str:
+    """Run a shell command, return stdout stripped, or empty string on failure."""
+    try:
+        return _shell(cmd, timeout=5).stdout.strip()
+    except Exception:
+        return ""
 
 
 def gather_context() -> str:
     """Build a project-aware system prompt from the current environment."""
     cwd = os.getcwd()
 
-    def s(cmd):
-        return _shell(cmd, timeout=5).stdout.strip()
-
     # File tree — prefer git-aware listing, fall back to top-level ls.
     try:
-        raw = s("git ls-files") + "\n" + s("git ls-files --others --exclude-standard")
+        raw = _run_quiet("git ls-files") + "\n" + _run_quiet("git ls-files --others --exclude-standard")
         files = sorted(set(filter(None, raw.splitlines())))
     except Exception:
         files = sorted(p.name for p in Path(cwd).iterdir() if not p.name.startswith("."))
 
-    # Git context — branch, status, recent commits.
-    try:
-        git_info = (
-            f"\n## Git\nBranch: {s('git branch --show-current')}"
-            f"\nStatus: {s('git status --short') or '(clean)'}"
-            f"\nRecent commits:\n{s('git log --oneline -5')}"
-        )
-    except Exception:
-        git_info = ""
+    # Git context with graceful fallback
+    branch = _run_quiet("git branch --show-current")
+    status = _run_quiet("git status --short") or "(clean)"
+    commits = _run_quiet("git log --oneline -5")
+    git_info = f"\n## Git\nBranch: {branch}\nStatus: {status}\nRecent commits:\n{commits}" if branch else ""
 
     return f"""\
 You are a coding agent. You solve tasks by running bash commands.
@@ -95,7 +106,7 @@ You are a coding agent. You solve tasks by running bash commands.
 - Platform: {platform.system()} {platform.release()}
 
 ## File tree
-{chr(10).join(files) if files else "(empty)"}
+{"\n".join(files) if files else "(empty)"}
 {git_info}"""
 
 
@@ -132,7 +143,7 @@ TOOLS = [
 
 def bash(command: str) -> str:
     """Executes a shell command and returns stdout (or stderr if stdout is empty)."""
-    print(f"\033[96m$ {command}\033[0m")
+    print(f"{CYAN}$ {command}{RESET}")
     try:
         res = _shell(command)
         return res.stdout or res.stderr or "(no output)"
@@ -194,7 +205,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None
 
         # Print any text the LLM produced (thinking out loud, final answer, etc.)
         if response.content:
-            print(f"\033[93mAgent:\033[0m {response.content}")
+            print(f"{YELLOW}Agent:{RESET} {response.content}")
 
         # If the LLM requested tool calls, execute them and loop back.
         # The LLM can request multiple tool calls in one turn (parallel calls).
@@ -209,7 +220,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None
         # No tool calls = the LLM thinks the task is done.
         # In HITL mode, give the human a chance to provide feedback.
         if enable_hitl:
-            feedback = input("\033[95m[HITL] Provide feedback (or press Enter to finish): \033[0m")
+            feedback = input(f"{MAGENTA}[HITL] Provide feedback (or press Enter to finish): {RESET}")
             if feedback.strip():
                 messages.append({"role": "user", "content": feedback})
                 continue  # Feed the feedback back and let the agent continue.
