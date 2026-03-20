@@ -38,7 +38,7 @@ from docstring_parser import parse
 from openai.types.chat import ChatCompletionMessageToolCallUnion
 
 # reuse
-from ch_01_bash_agent import Colors, gather_project_context, git_files, run_agent, shell
+from ch_01_bash_agent import Colors, _run_agent, gather_project_context, git_files, shell
 
 # ---------------------------------------------------------------------------
 # Context gathering
@@ -265,6 +265,17 @@ def execute_tool_call(tool_call: ChatCompletionMessageToolCallUnion) -> str:
         return f"Unknown tool: {name}" if handler is None else handler(**kwargs)
     except (json.JSONDecodeError, KeyError, TypeError) as e:
         return f"Error parsing tool call: {e}"
+
+
+def run_agent(task: str, max_steps: int = 30, enable_hitl: bool = False) -> list[dict]:
+    return _run_agent(
+        task,
+        system_prompt=SYSTEM_PROMPT,
+        tools=TOOLS,
+        execute_tool_call=execute_tool_call,
+        max_steps=max_steps,
+        enable_hitl=enable_hitl,
+    )
 
 
 def main():

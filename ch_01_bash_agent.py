@@ -183,12 +183,12 @@ def execute_tool_call(tool_call: ChatCompletionMessageToolCallUnion) -> str:
 # ---------------------------------------------------------------------------
 
 
-def run_agent(
+def _run_agent(
     task: str,
     system_prompt: str,
     tools: list[dict],
     execute_tool_call: Callable[[ChatCompletionMessageToolCallUnion], str],
-    max_steps: int = 10,
+    max_steps: int = 30,
     enable_hitl: bool = False,
 ) -> dict:
     """Core agent loop: orchestrates the LLM turns and tool execution.
@@ -260,6 +260,17 @@ def run_agent(
     print(f"\nTrajectory saved: {log_file}")
 
     return trajectory
+
+
+def run_agent(task: str, max_steps: int = 30, enable_hitl: bool = False) -> list[dict]:
+    return _run_agent(
+        task,
+        system_prompt=SYSTEM_PROMPT,
+        tools=TOOLS,
+        execute_tool_call=execute_tool_call,
+        max_steps=max_steps,
+        enable_hitl=enable_hitl,
+    )
 
 
 def main():
