@@ -42,5 +42,4 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "-n", "auto",
-    "--dist=loadfile",
 ]
