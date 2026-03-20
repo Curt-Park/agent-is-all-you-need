@@ -20,7 +20,7 @@ What changed from Chapter 02:
 
 Usage:
 ------
-    $ python ch_03_planning_agent.py "Plan Jeju Island travel for 3 days, step-by-step with todo list"
+    $ python ch_03_planning_agent.py "Plan Jeju Island travel for 3 days, step-by-step"
     $ python ch_03_planning_agent.py "Refactor all bash agents into a class" --max-steps 10
 """
 
@@ -94,15 +94,12 @@ def render() -> str:
 
 
 @tool(tools=TOOLS, dispatch=DISPATCH)
-def todo(items: list[TodoItem], max_todos: int = 20) -> str:
+def todo(items: list[TodoItem]) -> str:
     """Update task list. Track progress on multi-step tasks.
 
     Args:
         items: List of todo items.
-        max_todos: Maximum number of todo items, Default to 20.
     """
-    if len(items) > max_todos:
-        raise ValueError(f"Max {max_todos} todos allowed")
     print(f"{Colors.MAGENTA}[todo] updating {len(items)} items{Colors.RESET}")
     TODO[:] = items
     return render()

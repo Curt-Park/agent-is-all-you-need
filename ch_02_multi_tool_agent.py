@@ -31,13 +31,12 @@ import argparse
 import fnmatch
 import inspect
 import json
-import types
 from pathlib import Path
-from typing import Literal, get_args, get_origin, get_type_hints
 
 from ddgs import DDGS
 from docstring_parser import parse
 from openai.types.chat import ChatCompletionMessageToolCallUnion
+from pydantic import TypeAdapter
 
 # reuse
 from ch_01_bash_agent import Colors, _run_agent, gather_project_context, git_files, shell
@@ -73,43 +72,19 @@ TOOLS: list[dict] = []  # OpenAI function-calling schemas
 DISPATCH: dict[str, callable] = {}  # name -> handler(**kwargs)
 
 
-_PRIMITIVE_MAP = {str: "string", int: "integer", float: "number", bool: "boolean"}
+def _resolve_refs(schema: dict, defs: dict) -> dict:
+    """Inline $ref references so the schema is self-contained."""
+    if "$ref" in schema:
+        ref_name = schema["$ref"].rsplit("/", 1)[-1]
+        return _resolve_refs(defs[ref_name], defs)
+    return {k: _resolve_refs(v, defs) if isinstance(v, dict) else v for k, v in schema.items()}
 
 
 def _type_to_schema(t) -> dict:
     """Convert a Python type annotation to a JSON schema dict."""
-    # Primitives
-    if t in _PRIMITIVE_MAP:
-        return {"type": _PRIMITIVE_MAP[t]}
-
-    origin = get_origin(t)
-    args = get_args(t)
-
-    # Literal["a", "b"] → {"type": "string", "enum": [...]}
-    if origin is Literal:
-        return {"type": "string", "enum": list(args)}
-
-    # list[X] → {"type": "array", "items": ...}
-    if origin is list:
-        return {"type": "array", "items": _type_to_schema(args[0]) if args else {"type": "string"}}
-
-    # X | None → schema(X)
-    if origin is types.UnionType:
-        non_none = [a for a in args if a is not type(None)]
-        if len(non_none) == 1:
-            return _type_to_schema(non_none[0])
-
-    # TypedDict → {"type": "object", "properties": ..., "required": ...}
-    if isinstance(t, type) and issubclass(t, dict) and hasattr(t, "__annotations__"):
-        hints = get_type_hints(t, include_extras=True)
-        required_keys = getattr(t, "__required_keys__", set(hints.keys()))
-        props = {k: _type_to_schema(v) for k, v in hints.items()}
-        schema = {"type": "object", "properties": props}
-        if required_keys:
-            schema["required"] = sorted(required_keys)
-        return schema
-
-    return {"type": "string"}
+    schema = TypeAdapter(t).json_schema()
+    defs = schema.pop("$defs", None)
+    return _resolve_refs(schema, defs) if defs else schema
 
 
 def _build_schema(func: callable, doc: object, sig: inspect.Signature) -> dict:
