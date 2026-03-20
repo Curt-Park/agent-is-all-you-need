@@ -67,13 +67,40 @@ and avoid common shell pitfalls.
 # ---------------------------------------------------------------------------
 # Tool registry — @tool decorator builds OpenAI schemas + dispatch in one place
 # ---------------------------------------------------------------------------
+#
+# The Big Idea
+# ~~~~~~~~~~~~
+# An agent needs two things per tool:
+#   1. A JSON **schema** so the LLM knows what arguments are available.
+#   2. A **handler** function to actually run when the LLM calls the tool.
+#
+# Keeping those two in sync by hand is tedious and error-prone — you'd have to
+# update both a JSON dict and a Python function every time you change a param.
+#
+# Our solution: a @tool decorator that inspects the function's type hints and
+# docstring at import time, auto-generates the OpenAI schema, and registers
+# the handler — all from a single function definition.
+#
+# The two registries below are populated automatically by @tool:
 
-TOOLS: list[dict] = []  # OpenAI function-calling schemas
-DISPATCH: dict[str, callable] = {}  # name -> handler(**kwargs)
+TOOLS: list[dict] = []  # OpenAI function-calling schemas (sent to the API)
+DISPATCH: dict[str, callable] = {}  # name -> handler(**kwargs) (used at runtime)
 
+
+# -- Schema helpers ----------------------------------------------------------
+#
+# OpenAI's function-calling API expects a JSON Schema for each tool's
+# parameters.  We use Pydantic's TypeAdapter to convert Python type hints
+# (str, int, int | None, etc.) into JSON Schema snippets automatically.
 
 def _resolve_refs(schema: dict, defs: dict) -> dict:
-    """Inline $ref references so the schema is self-contained."""
+    """Inline $ref references so the schema is self-contained.
+
+    Pydantic sometimes emits schemas with $ref pointers to a "$defs" section
+    (e.g. for union types like `int | None`).  OpenAI expects a flat,
+    self-contained schema, so we recursively replace every $ref with the
+    actual definition it points to.
+    """
     if "$ref" in schema:
         ref_name = schema["$ref"].rsplit("/", 1)[-1]
         return _resolve_refs(defs[ref_name], defs)
@@ -81,29 +108,47 @@ def _resolve_refs(schema: dict, defs: dict) -> dict:
 
 
 def _type_to_schema(t) -> dict:
-    """Convert a Python type annotation to a JSON schema dict."""
+    """Convert a Python type annotation to a JSON schema dict.
+
+    Examples:
+        str          -> {"type": "string"}
+        int          -> {"type": "integer"}
+        int | None   -> {"anyOf": [{"type": "integer"}, {"type": "null"}]}
+    """
     schema = TypeAdapter(t).json_schema()
     defs = schema.pop("$defs", None)
     return _resolve_refs(schema, defs) if defs else schema
 
 
 def _build_schema(func: callable, doc: object, sig: inspect.Signature) -> dict:
-    """Build an OpenAI function-calling schema from a function's signature and docstring."""
+    """Build an OpenAI function-calling schema from a function's signature and docstring.
+
+    Walks each parameter in the function signature and:
+      - converts its type annotation to a JSON Schema property,
+      - pulls its description from the parsed docstring,
+      - marks it as required if it has no default value.
+
+    The result is a dict ready to pass in the `tools` list of a chat completion.
+    """
     properties = {}
     required = []
 
     for param_name, param in sig.parameters.items():
+        # Match this param to its docstring description (if any)
         doc_param = next((p for p in doc.params if p.arg_name == param_name), None)
 
+        # Turn the type hint into a JSON Schema property
         prop = _type_to_schema(param.annotation)
         if doc_param and doc_param.description:
             prop["description"] = doc_param.description
 
         properties[param_name] = prop
 
+        # Parameters without a default value are required
         if param.default == inspect.Parameter.empty:
             required.append(param_name)
 
+    # Assemble the final schema in the format OpenAI expects
     return {
         "type": "function",
         "function": {
@@ -113,6 +158,8 @@ def _build_schema(func: callable, doc: object, sig: inspect.Signature) -> dict:
         },
     }
 
+
+# -- The @tool decorator itself ----------------------------------------------
 
 def tool(func=None, *, tools: list[dict], dispatch: dict):
     """Decorator: registers a function as an agent tool.
@@ -128,10 +175,14 @@ def tool(func=None, *, tools: list[dict], dispatch: dict):
     """
 
     def decorator(f):
+        # 1. Parse the docstring to extract the short description + param docs
         doc = parse(f.__doc__)
+        # 2. Inspect the function signature (param names, types, defaults)
         sig = inspect.signature(f)
+        # 3. Combine both to produce the OpenAI-compatible JSON schema
         schema = _build_schema(f, doc, sig)
 
+        # 4. Register: append the schema for the API, map the name for dispatch
         tools.append(schema)
         dispatch[f.__name__] = f
         return f
