@@ -280,7 +280,7 @@ def main():
     parser.add_argument("--hitl", action="store_true", help="Enable human-in-the-loop")
     args = parser.parse_args()
 
-    run_agent(args.task, SYSTEM_PROMPT, TOOLS, execute_tool_call, args.max_steps, args.hitl)
+    run_agent(args.task, args.max_steps, args.hitl)
 
 
 if __name__ == "__main__":
