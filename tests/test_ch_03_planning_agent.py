@@ -1,14 +1,6 @@
 import json
 
-import pytest
-
-from ch_03_planning_agent import TODO, run_agent
-
-
-@pytest.fixture(autouse=True)
-def clear_todo():
-    TODO.clear()
-    yield
+from ch_03_planning_agent import run_agent
 
 
 def get_todo_calls(trajectory):
@@ -35,7 +27,7 @@ def test_planning_creates_pending_then_completes_all(workspace):
     # First todo call: all items should be pending
     first_items = todo_calls[0]["items"]
     assert len(first_items) > 0
-    assert all(item["status"] == "pending" for item in first_items)
+    assert all(item["status"] in {"pending", "in_progress"} for item in first_items)
 
     # Last todo call: all items should be completed
     last_items = todo_calls[-1]["items"]

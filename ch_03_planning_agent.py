@@ -69,8 +69,6 @@ and avoid common shell pitfalls.
 TOOLS: list[dict] = BASE_TOOLS.copy()  # OpenAI function-calling schemas for planning
 DISPATCH: dict[str, callable] = BASE_DISPATCH.copy()  # name -> handler(**kwargs)
 
-MARKER = {"pending": "[ ]", "in_progress": "[>]", "completed": "[x]"}
-
 
 class TodoItem(TypedDict):
     id: int
@@ -78,18 +76,16 @@ class TodoItem(TypedDict):
     status: Literal["pending", "in_progress", "completed"]
 
 
-TODO: list[TodoItem] = []
-
-
-def render() -> str:
+def render(items: list[TodoItem]) -> str:
     """Render the current todo list as a formatted string."""
-    if not TODO:
+    if not items:
         return "TODO is empty."
+    marker = {"pending": "[ ]", "in_progress": "[>]", "completed": "[x]"}
     lines = []
-    for item in TODO:
-        lines.append(f"{MARKER[item['status']]} #{item['id']}: {item['text']}")
-    done = sum(1 for t in TODO if t["status"] == "completed")
-    lines.append(f"\n({done}/{len(TODO)} completed)")
+    for item in items:
+        lines.append(f"{marker[item['status']]} #{item['id']}: {item['text']}")
+    done = sum(1 for t in items if t["status"] == "completed")
+    lines.append(f"\n({done}/{len(items)} completed)")
     return "\n".join(lines)
 
 
@@ -100,9 +96,8 @@ def todo(items: list[TodoItem]) -> str:
     Args:
         items: List of todo items.
     """
-    print(f"{Colors.MAGENTA}[todo] updating {len(items)} items{Colors.RESET}")
-    TODO[:] = items
-    return render()
+    print(f"{Colors.MAGENTA}[todo] {len(items)} items{Colors.RESET}")
+    return render(items)
 
 
 # ---------------------------------------------------------------------------
