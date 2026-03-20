@@ -190,7 +190,11 @@ def tool(func):
 
 @tool
 def bash(command: str) -> str:
-    """Run a shell command. Use for git, tests, installs, or anything without a dedicated tool."""
+    """Run a shell command. Use for git, tests, installs, or anything without a dedicated tool.
+
+    Args:
+        command: The shell command to execute.
+    """
     print(f"{CYAN}$ {command}{RESET}")
     try:
         res = _shell(command)
@@ -201,7 +205,13 @@ def bash(command: str) -> str:
 
 @tool
 def read(path: str, offset: int = 1, limit: int | None = None) -> str:
-    """Read a file with numbered lines. Use offset/limit for large files."""
+    """Read a file with numbered lines. Use offset/limit for large files.
+
+    Args:
+        path: Path to the file to read.
+        offset: Starting line number (1-indexed). Defaults to 1.
+        limit: Maximum number of lines to read. Defaults to None (read all).
+    """
     suffix = f" (lines {offset}-{offset + limit - 1})" if limit else ""
     print(f"{BLUE}[read] {path}{suffix}{RESET}")
     try:
@@ -219,7 +229,12 @@ def read(path: str, offset: int = 1, limit: int | None = None) -> str:
 
 @tool
 def write(path: str, content: str) -> str:
-    """Create or overwrite a file with the given content."""
+    """Create or overwrite a file with the given content.
+
+    Args:
+        path: Destination file path.
+        content: The content to write to the file.
+    """
     print(f"{BLUE}[write] {path}{RESET}")
     try:
         p = Path(path)
@@ -232,7 +247,13 @@ def write(path: str, content: str) -> str:
 
 @tool
 def edit(path: str, old_string: str, new_string: str) -> str:
-    """Edit a file by replacing an exact unique string match."""
+    """Edit a file by replacing an exact unique string match.
+
+    Args:
+        path: Path to the file to edit.
+        old_string: The exact string to find and replace. Must be unique in the file.
+        new_string: The replacement string.
+    """
     print(f"{BLUE}[edit] {path}{RESET}")
     try:
         text = Path(path).read_text()
@@ -249,7 +270,11 @@ def edit(path: str, old_string: str, new_string: str) -> str:
 
 @tool
 def glob(pattern: str) -> str:
-    """Find files matching a glob pattern (e.g. '**/*.py'). Returns matching paths."""
+    """Find files matching a glob pattern (e.g. '**/*.py'). Returns matching paths.
+
+    Args:
+        pattern: Glob pattern to match files against.
+    """
     print(f"{BLUE}[glob] {pattern}{RESET}")
     files = _git_files()
     if files:
@@ -261,7 +286,13 @@ def glob(pattern: str) -> str:
 
 @tool
 def grep(pattern: str, path: str = ".", include: str | None = None) -> str:
-    """Search file contents for a regex pattern. Returns file:line:content matches."""
+    """Search file contents for a regex pattern. Returns file:line:content matches.
+
+    Args:
+        pattern: Regular expression pattern to search for.
+        path: Directory or file path to search in. Defaults to ".".
+        include: Optional glob pattern to filter files (e.g. "*.py").
+    """
     path_suffix = f" in {path}" if path != "." else ""
     print(f"{BLUE}[grep] /{pattern}/{path_suffix}{RESET}")
     cmd = f"grep -rn -E '{pattern}' '{path}'"
@@ -278,7 +309,12 @@ def grep(pattern: str, path: str = ".", include: str | None = None) -> str:
 
 @tool
 def websearch(query: str, max_results: int = 3) -> str:
-    """Search the web using DuckDuckGo. Use for external information not in the project."""
+    """Search the web using DuckDuckGo. Use for external information not in the project.
+
+    Args:
+        query: The search query.
+        max_results: Maximum number of results to return. Defaults to 3.
+    """
     print(f"{GREEN}[websearch] {query}{RESET}")
     try:
         results = DDGS().text(query, max_results=max_results)
@@ -367,8 +403,8 @@ def main():
     parser.add_argument("--hitl", action="store_true", help="Enable human-in-the-loop")
     args = parser.parse_args()
 
-    # print(TOOLS)
-    run_agent(args.task, args.max_steps, args.hitl)
+    print(TOOLS)
+    # run_agent(args.task, args.max_steps, args.hitl)
 
 
 if __name__ == "__main__":
