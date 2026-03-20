@@ -30,77 +30,78 @@ import json
 import os
 import platform
 import subprocess
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
 from openai import OpenAI
-
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
+from openai.types.chat import ChatCompletionMessageToolCallUnion
 
 load_dotenv()
 
 
 # ---------------------------------------------------------------------------
-# Helper functions
+# Helper functions and dataclasses
 # ---------------------------------------------------------------------------
 
 
-def _shell(command: str, timeout: int = 30) -> subprocess.CompletedProcess:
+@dataclass
+class Colors:
+    """Color codes for terminal output."""
+
+    CYAN = "\033[96m"
+    BLUE = "\033[94m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    MAGENTA = "\033[95m"
+    RESET = "\033[0m"
+
+
+def shell(command: str, timeout: int = 30) -> subprocess.CompletedProcess:
     """Run a shell command and return the CompletedProcess result."""
     return subprocess.run(command, shell=True, text=True, capture_output=True, timeout=timeout)
 
 
-# ---------------------------------------------------------------------------
-# Color codes for terminal output
-# ---------------------------------------------------------------------------
+def run_quiet(cmd: str) -> str:
+    """Run a shell command, return stdout stripped, or empty string on failure."""
+    try:
+        return shell(cmd, timeout=5).stdout.strip()
+    except Exception:
+        return ""
 
-CYAN = "\033[96m"
-YELLOW = "\033[93m"
-MAGENTA = "\033[95m"
-RESET = "\033[0m"
+
+def git_files() -> list[str]:
+    """List all git-tracked + untracked-not-ignored files, or [] on failure."""
+    try:
+
+        def s(cmd):
+            return run_quiet(cmd, timeout=5).stdout.strip()
+
+        raw = s("git ls-files") + "\n" + s("git ls-files --others --exclude-standard")
+        return sorted(set(filter(None, raw.splitlines())))
+    except Exception:
+        return []
 
 
 # ---------------------------------------------------------------------------
 # Context gathering
 # ---------------------------------------------------------------------------
-
-
-def _run_quiet(cmd: str) -> str:
-    """Run a shell command, return stdout stripped, or empty string on failure."""
-    try:
-        return _shell(cmd, timeout=5).stdout.strip()
-    except Exception:
-        return ""
-
-
-def gather_context() -> str:
+def gather_project_context() -> str:
     """Build a project-aware system prompt from the current environment."""
     cwd = os.getcwd()
 
     # File tree — prefer git-aware listing, fall back to top-level ls.
-    try:
-        raw = _run_quiet("git ls-files") + "\n" + _run_quiet("git ls-files --others --exclude-standard")
-        files = sorted(set(filter(None, raw.splitlines())))
-    except Exception:
-        files = sorted(p.name for p in Path(cwd).iterdir() if not p.name.startswith("."))
+    files = git_files() or sorted(p.name for p in Path(cwd).iterdir() if not p.name.startswith("."))
 
     # Git context with graceful fallback
-    branch = _run_quiet("git branch --show-current")
-    status = _run_quiet("git status --short") or "(clean)"
-    commits = _run_quiet("git log --oneline -5")
+    branch = run_quiet("git branch --show-current")
+    status = run_quiet("git status --short") or "(clean)"
+    commits = run_quiet("git log --oneline -5")
     git_info = f"\n## Git\nBranch: {branch}\nStatus: {status}\nRecent commits:\n{commits}" if branch else ""
 
     return f"""\
-You are a coding agent. You solve tasks by running bash commands.
-
-# Safety
-- Never run destructive commands (rm -rf, git push --force, git reset --hard)
-  without explicit user confirmation.
-- Avoid commands that could expose secrets (e.g. printing .env files).
-
 # Environment
 - Working directory: {cwd}
 - Platform: {platform.system()} {platform.release()}
@@ -110,7 +111,15 @@ You are a coding agent. You solve tasks by running bash commands.
 {git_info}"""
 
 
-SYSTEM_PROMPT = gather_context()
+SYSTEM_PROMPT = """\
+You are a coding agent. You solve tasks by running bash commands.
+
+# Safety
+- Never run destructive commands (rm -rf, git push --force, git reset --hard)
+without explicit user confirmation.
+- Avoid commands that could expose secrets (e.g. printing .env files).
+
+""" + gather_project_context()
 
 
 # ---------------------------------------------------------------------------
@@ -143,9 +152,9 @@ TOOLS = [
 
 def bash(command: str) -> str:
     """Executes a shell command and returns stdout (or stderr if stdout is empty)."""
-    print(f"{CYAN}$ {command}{RESET}")
+    print(f"{Colors.CYAN}$ {command}{Colors.RESET}")
     try:
-        res = _shell(command)
+        res = shell(command)
         return res.stdout or res.stderr or "(no output)"
     except Exception as e:
         return f"Error: {e}"
@@ -156,7 +165,7 @@ def bash(command: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def execute_tool_call(tool_call) -> str:
+def execute_tool_call(tool_call: ChatCompletionMessageToolCallUnion) -> str:
     """Parse the LLM's tool call JSON and run the requested command.
 
     The LLM sometimes produces malformed JSON (especially smaller models),
@@ -174,7 +183,14 @@ def execute_tool_call(tool_call) -> str:
 # ---------------------------------------------------------------------------
 
 
-def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None:
+def run_agent(
+    task: str,
+    system_prompt: str,
+    tools: list[dict],
+    execute_tool_call: Callable[[ChatCompletionMessageToolCallUnion], str],
+    max_steps: int = 10,
+    enable_hitl: bool = False,
+) -> dict:
     """Core agent loop: orchestrates the LLM turns and tool execution.
 
     Each iteration is one "turn":
@@ -189,7 +205,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None
     # Every LLM response and tool result gets appended here — this growing
     # list IS the agent's memory for this session.
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": task},
     ]
 
@@ -197,7 +213,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None
         print(f"\n--- Step {step + 1}/{max_steps} ---")
 
         # Ask the LLM: "given this conversation so far, what do you want to do?"
-        response = client.chat.completions.create(model=model, messages=messages, tools=TOOLS).choices[0].message
+        response = client.chat.completions.create(model=model, messages=messages, tools=tools).choices[0].message
 
         # Append the LLM's response to the conversation history.
         # model_dump() converts the response object to a dict for the messages list.
@@ -205,7 +221,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None
 
         # Print any text the LLM produced (thinking out loud, final answer, etc.)
         if response.content:
-            print(f"{YELLOW}Agent:{RESET} {response.content}")
+            print(f"{Colors.YELLOW}Agent:{Colors.RESET} {response.content}")
 
         # If the LLM requested tool calls, execute them and loop back.
         # The LLM can request multiple tool calls in one turn (parallel calls).
@@ -220,7 +236,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None
         # No tool calls = the LLM thinks the task is done.
         # In HITL mode, give the human a chance to provide feedback.
         if enable_hitl:
-            feedback = input(f"{MAGENTA}[HITL] Provide feedback (or press Enter to finish): {RESET}")
+            feedback = input(f"{Colors.MAGENTA}[HITL] Provide feedback (or press Enter to finish): {Colors.RESET}")
             if feedback.strip():
                 messages.append({"role": "user", "content": feedback})
                 continue  # Feed the feedback back and let the agent continue.
@@ -243,6 +259,8 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None
     log_file.write_text(json.dumps(trajectory, indent=2))
     print(f"\nTrajectory saved: {log_file}")
 
+    return trajectory
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -251,7 +269,7 @@ def main():
     parser.add_argument("--hitl", action="store_true", help="Enable human-in-the-loop")
     args = parser.parse_args()
 
-    run_agent(args.task, args.max_steps, args.hitl)
+    run_agent(args.task, SYSTEM_PROMPT, TOOLS, execute_tool_call, args.max_steps, args.hitl)
 
 
 if __name__ == "__main__":

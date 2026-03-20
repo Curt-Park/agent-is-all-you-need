@@ -31,108 +31,36 @@ import argparse
 import fnmatch
 import inspect
 import json
-import os
-import platform
-import subprocess
-from datetime import UTC, datetime
 from pathlib import Path
 
 from ddgs import DDGS
 from docstring_parser import parse
-from dotenv import load_dotenv
-from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageToolCallUnion
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-
-load_dotenv()
-
-
-# ---------------------------------------------------------------------------
-# Helper functions
-# ---------------------------------------------------------------------------
-
-
-def _shell(command: str, timeout: int = 30) -> subprocess.CompletedProcess:
-    """Run a shell command and return the CompletedProcess result."""
-    return subprocess.run(command, shell=True, text=True, capture_output=True, timeout=timeout)
-
+# reuse
+from ch_01_bash_agent import Colors, gather_project_context, git_files, run_agent, shell
 
 # ---------------------------------------------------------------------------
 # Context gathering
 # ---------------------------------------------------------------------------
 
-
-def _git_files() -> list[str]:
-    """List all git-tracked + untracked-not-ignored files, or [] on failure."""
-    try:
-
-        def s(cmd):
-            return _shell(cmd, timeout=5).stdout.strip()
-
-        raw = s("git ls-files") + "\n" + s("git ls-files --others --exclude-standard")
-        return sorted(set(filter(None, raw.splitlines())))
-    except Exception:
-        return []
-
-
-def gather_context() -> str:
-    """Build a project-aware system prompt from the current environment."""
-    cwd = os.getcwd()
-
-    def s(cmd):
-        return _shell(cmd, timeout=5).stdout.strip()
-
-    files = _git_files() or sorted(p.name for p in Path(cwd).iterdir() if not p.name.startswith("."))
-
-    # Git info with graceful fallback
-    try:
-        branch = s("git branch --show-current")
-        status = s("git status --short") or "(clean)"
-        commits = s("git log --oneline -5")
-        git_info = f"\n## Git\nBranch: {branch}\nStatus: {status}\nRecent commits:\n{commits}"
-    except Exception:
-        git_info = ""
-
-    return f"""\
+SYSTEM_PROMPT = """\
 You are a coding agent. Solve tasks using the provided tools.
 
 # Safety
 - Never run destructive commands (rm -rf, git push --force, git reset --hard)
-  without explicit user confirmation.
+without explicit user confirmation.
 - Avoid commands that could expose secrets (e.g. printing .env files).
 
 # Tool usage
 - Prefer specialized tools (read, write, edit, glob, grep)
-  over bash for file operations. They are safer, produce structured output,
-  and avoid common shell pitfalls.
+over bash for file operations. They are safer, produce structured output,
+and avoid common shell pitfalls.
 - Use bash only for commands that have no dedicated tool
-  (e.g. running tests, installing packages, git commands).
+(e.g. running tests, installing packages, git commands).
 - Use websearch for information not available in the project.
 
-# Environment
-- Working directory: {cwd}
-- Platform: {platform.system()} {platform.release()}
-
-## File tree
-{"\n".join(files) if files else "(empty)"}
-{git_info}"""
-
-
-SYSTEM_PROMPT = gather_context()
-
-
-# ---------------------------------------------------------------------------
-# Color codes for terminal output
-# ---------------------------------------------------------------------------
-
-CYAN = "\033[96m"
-BLUE = "\033[94m"
-GREEN = "\033[92m"
-YELLOW = "\033[93m"
-MAGENTA = "\033[95m"
-RESET = "\033[0m"
+""" + gather_project_context()
 
 
 # ---------------------------------------------------------------------------
@@ -195,9 +123,9 @@ def bash(command: str) -> str:
     Args:
         command: The shell command to execute.
     """
-    print(f"{CYAN}$ {command}{RESET}")
+    print(f"{Colors.CYAN}$ {command}{Colors.RESET}")
     try:
-        res = _shell(command)
+        res = shell(command)
         return res.stdout or res.stderr or "(no output)"
     except Exception as e:
         return f"Error: {e}"
@@ -213,7 +141,7 @@ def read(path: str, offset: int = 1, limit: int | None = None) -> str:
         limit: Maximum number of lines to read. Defaults to None (read all).
     """
     suffix = f" (lines {offset}-{offset + limit - 1})" if limit else ""
-    print(f"{BLUE}[read] {path}{suffix}{RESET}")
+    print(f"{Colors.BLUE}[read] {path}{suffix}{Colors.RESET}")
     try:
         text = Path(path).read_text()
         if not text:
@@ -235,7 +163,7 @@ def write(path: str, content: str) -> str:
         path: Destination file path.
         content: The content to write to the file.
     """
-    print(f"{BLUE}[write] {path}{RESET}")
+    print(f"{Colors.BLUE}[write] {path}{Colors.RESET}")
     try:
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -254,7 +182,7 @@ def edit(path: str, old_string: str, new_string: str) -> str:
         old_string: The exact string to find and replace. Must be unique in the file.
         new_string: The replacement string.
     """
-    print(f"{BLUE}[edit] {path}{RESET}")
+    print(f"{Colors.BLUE}[edit] {path}{Colors.RESET}")
     try:
         text = Path(path).read_text()
         count = text.count(old_string)
@@ -275,8 +203,8 @@ def glob(pattern: str) -> str:
     Args:
         pattern: Glob pattern to match files against.
     """
-    print(f"{BLUE}[glob] {pattern}{RESET}")
-    files = _git_files()
+    print(f"{Colors.BLUE}[glob] {pattern}{Colors.RESET}")
+    files = git_files()
     if files:
         matches = [f for f in files if fnmatch.fnmatch(f, pattern)]
     else:
@@ -294,12 +222,12 @@ def grep(pattern: str, path: str = ".", include: str | None = None) -> str:
         include: Optional glob pattern to filter files (e.g. "*.py").
     """
     path_suffix = f" in {path}" if path != "." else ""
-    print(f"{BLUE}[grep] /{pattern}/{path_suffix}{RESET}")
+    print(f"{Colors.BLUE}[grep] /{pattern}/{path_suffix}{Colors.RESET}")
     cmd = f"grep -rn -E '{pattern}' '{path}'"
     if include:
         cmd += f" --include='{include}'"
     try:
-        output = _shell(cmd, timeout=10).stdout.strip()
+        output = shell(cmd, timeout=10).stdout.strip()
         # Limit output to 100 lines
         lines = output.splitlines()[:100]
         return "\n".join(lines) if lines else "No matches found."
@@ -315,7 +243,7 @@ def websearch(query: str, max_results: int = 3) -> str:
         query: The search query.
         max_results: Maximum number of results to return. Defaults to 3.
     """
-    print(f"{GREEN}[websearch] {query}{RESET}")
+    print(f"{Colors.GREEN}[websearch] {query}{Colors.RESET}")
     try:
         results = DDGS().text(query, max_results=max_results)
         return json.dumps(results, indent=2)
@@ -328,7 +256,7 @@ def websearch(query: str, max_results: int = 3) -> str:
 # ---------------------------------------------------------------------------
 
 
-def execute_tool_call(tool_call) -> str:
+def execute_tool_call(tool_call: ChatCompletionMessageToolCallUnion) -> str:
     """Parse a tool call, dispatch to the right handler, and return the output."""
     try:
         name = tool_call.function.name
@@ -339,63 +267,6 @@ def execute_tool_call(tool_call) -> str:
         return f"Error parsing tool call: {e}"
 
 
-# ---------------------------------------------------------------------------
-# Agent loop: same as chapter 01, but returns a trajectory for tests
-# ---------------------------------------------------------------------------
-
-
-def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> dict:
-    """Core agent loop: orchestrates the LLM turns and tool execution."""
-    client = OpenAI(base_url=os.getenv("LLM_BASE_URL"), api_key=os.getenv("LLM_API_KEY"))
-    model = os.getenv("LLM_MODEL_ID")
-
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": task},
-    ]
-
-    for step in range(max_steps):
-        print(f"\n--- Step {step + 1}/{max_steps} ---")
-
-        response = client.chat.completions.create(model=model, messages=messages, tools=TOOLS).choices[0].message
-        messages.append(response.model_dump(exclude_none=True))
-
-        if response.content:
-            print(f"{YELLOW}Agent:{RESET} {response.content}")
-
-        if response.tool_calls:
-            for tool_call in response.tool_calls:
-                output = execute_tool_call(tool_call)
-                print(output)
-                messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": output})
-            continue
-
-        if enable_hitl:
-            feedback = input(f"{MAGENTA}[HITL] Provide feedback (or press Enter to finish): {RESET}")
-            if feedback.strip():
-                messages.append({"role": "user", "content": feedback})
-                continue
-
-        print("Task marked complete.")
-        break
-
-    trajectory = {
-        "task": task,
-        "model": model,
-        "max_steps": max_steps,
-        "steps_used": step + 1,
-        "timestamp": datetime.now(UTC).isoformat(),
-        "messages": messages,
-    }
-
-    Path("logs").mkdir(exist_ok=True)
-    log_file = Path("logs") / f"trajectory_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
-    log_file.write_text(json.dumps(trajectory, indent=2, default=str))
-    print(f"\nTrajectory saved: {log_file}")
-
-    return trajectory
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("task", help="Task to perform")
@@ -403,8 +274,7 @@ def main():
     parser.add_argument("--hitl", action="store_true", help="Enable human-in-the-loop")
     args = parser.parse_args()
 
-    print(TOOLS)
-    # run_agent(args.task, args.max_steps, args.hitl)
+    run_agent(args.task, SYSTEM_PROMPT, TOOLS, execute_tool_call, args.max_steps, args.hitl)
 
 
 if __name__ == "__main__":
