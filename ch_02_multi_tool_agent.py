@@ -29,6 +29,7 @@ Usage:
 
 import argparse
 import fnmatch
+import inspect
 import json
 import os
 import platform
@@ -37,14 +38,27 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ddgs import DDGS
+from docstring_parser import parse
 from dotenv import load_dotenv
 from openai import OpenAI
 
-# Initialize client
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
 load_dotenv()
 client = OpenAI(base_url=os.getenv("LLM_BASE_URL"), api_key=os.getenv("LLM_API_KEY"))
-
 MODEL = os.getenv("LLM_MODEL_ID")
+
+
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+
+
+def _shell(command: str, timeout: int = 30) -> subprocess.CompletedProcess:
+    """Run a shell command and return the CompletedProcess result."""
+    return subprocess.run(command, shell=True, text=True, capture_output=True, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -52,51 +66,59 @@ MODEL = os.getenv("LLM_MODEL_ID")
 # ---------------------------------------------------------------------------
 
 
-def _shell(command: str) -> str:
-    """Run a shell command quietly and return stdout."""
-    return subprocess.run(command, shell=True, text=True, capture_output=True, timeout=5).stdout.strip()
-
-
 def _git_files() -> list[str]:
     """List all git-tracked + untracked-not-ignored files, or [] on failure."""
     try:
-        tracked = _shell("git ls-files")
-        untracked = _shell("git ls-files --others --exclude-standard")
-        return sorted(set(filter(None, (tracked + "\n" + untracked).splitlines())))
+
+        def s(cmd):
+            return _shell(cmd, timeout=5).stdout.strip()
+
+        raw = s("git ls-files") + "\n" + s("git ls-files --others --exclude-standard")
+        return sorted(set(filter(None, raw.splitlines())))
     except Exception:
         return []
 
 
 def gather_context() -> str:
-    """Gather a gitignore-aware project snapshot for the system prompt."""
+    """Build a project-aware system prompt from the current environment."""
     cwd = os.getcwd()
 
-    all_files = _git_files() or sorted(p.name for p in Path(cwd).iterdir() if not p.name.startswith("."))
-    file_tree = "\n".join(all_files) if all_files else "(empty)"
+    def s(cmd):
+        return _shell(cmd, timeout=5).stdout.strip()
 
-    git_info = ""
+    files = _git_files() or sorted(p.name for p in Path(cwd).iterdir() if not p.name.startswith("."))
+
     try:
-        branch = _shell("git branch --show-current")
-        status = _shell("git status --short")
-        log = _shell("git log --oneline -5")
-        git_info = f"\n## Git\nBranch: {branch}\nStatus:\n{status or '(clean)'}\nRecent commits:\n{log}"
+        git_info = (
+            f"\n## Git\nBranch: {s('git branch --show-current')}"
+            f"\nStatus: {s('git status --short') or '(clean)'}"
+            f"\nRecent commits:\n{s('git log --oneline -5')}"
+        )
     except Exception:
-        pass
+        git_info = ""
 
     return f"""\
 You are a coding agent. Solve tasks using the provided tools.
 
-IMPORTANT: Prefer the specialized tools (read_file, write_file, edit_file, glob,
-grep) over bash for file operations. They are safer, produce structured output,
-and avoid common shell pitfalls. Use bash only for commands that have no
-dedicated tool (e.g. running tests, installing packages, git commands).
+# Safety
+- Never run destructive commands (rm -rf, git push --force, git reset --hard)
+  without explicit user confirmation.
+- Avoid commands that could expose secrets (e.g. printing .env files).
+
+# Tool usage
+- Prefer specialized tools (read_file, write_file, edit_file, glob, grep)
+  over bash for file operations. They are safer, produce structured output,
+  and avoid common shell pitfalls.
+- Use bash only for commands that have no dedicated tool
+  (e.g. running tests, installing packages, git commands).
+- Use websearch for information not available in the project.
 
 # Environment
 - Working directory: {cwd}
 - Platform: {platform.system()} {platform.release()}
 
 ## File tree
-{file_tree}
+{chr(10).join(files) if files else "(empty)"}
 {git_info}"""
 
 
@@ -111,41 +133,44 @@ TOOLS: list[dict] = []  # OpenAI function-calling schemas
 DISPATCH: dict[str, callable] = {}  # name -> handler(**kwargs)
 
 
-def tool(name: str, description: str, params: dict[str, str | dict]):
-    """Decorator: registers a function as an agent tool.
+def tool(func):
+    """Decorator: registers a function as an agent tool using its signature and docstring."""
+    doc = parse(func.__doc__)
+    sig = inspect.signature(func)
 
-    params maps parameter names to either:
-      - a string (shorthand for a required string param with that description)
-      - a dict with keys: description, type (default "string"), required (default True)
-
-    The decorated function receives **kwargs directly from the LLM's JSON args.
-    """
     properties = {}
     required = []
-    for pname, pspec in params.items():
-        if isinstance(pspec, str):
-            properties[pname] = {"type": "string", "description": pspec}
-            required.append(pname)
-        else:
-            properties[pname] = {"type": pspec.get("type", "string"), "description": pspec["description"]}
-            if pspec.get("required", True):
-                required.append(pname)
+
+    # Map Python types to JSON schema types
+    type_map = {str: "string", int: "integer", float: "number", bool: "boolean", type(None): "string"}
+
+    for param_name, param in sig.parameters.items():
+        doc_param = next((p for p in doc.params if p.arg_name == param_name), None)
+
+        # Get type
+        t = param.annotation
+        p_type = type_map.get(t, "string")
+
+        properties[param_name] = {
+            "type": p_type,
+            "description": doc_param.description if doc_param else "",
+        }
+
+        if param.default == inspect.Parameter.empty:
+            required.append(param_name)
 
     schema = {
         "type": "function",
         "function": {
-            "name": name,
-            "description": description,
+            "name": func.__name__,
+            "description": doc.short_description,
             "parameters": {"type": "object", "properties": properties, "required": required},
         },
     }
 
-    def decorator(func):
-        TOOLS.append(schema)
-        DISPATCH[name] = func
-        return func
-
-    return decorator
+    TOOLS.append(schema)
+    DISPATCH[func.__name__] = func
+    return func
 
 
 # ---------------------------------------------------------------------------
@@ -153,32 +178,20 @@ def tool(name: str, description: str, params: dict[str, str | dict]):
 # ---------------------------------------------------------------------------
 
 
-@tool(
-    "bash",
-    "Run a shell command. Use for git, tests, installs, or anything without a dedicated tool.",
-    {
-        "command": "The shell command to execute.",
-    },
-)
-def run_bash_command(command: str) -> str:
+@tool
+def bash(command: str) -> str:
+    """Run a shell command. Use for git, tests, installs, or anything without a dedicated tool."""
     print(f"\033[96m$ {command}\033[0m")
     try:
-        res = subprocess.run(command, shell=True, text=True, capture_output=True, timeout=30)
+        res = _shell(command)
         return res.stdout or res.stderr or "(no output)"
     except Exception as e:
         return f"Error: {e}"
 
 
-@tool(
-    "read_file",
-    "Read a file with numbered lines. Use offset/limit for large files.",
-    {
-        "path": "File path (relative to working directory).",
-        "offset": {"description": "1-based start line.", "type": "integer", "required": False},
-        "limit": {"description": "Max lines to return.", "type": "integer", "required": False},
-    },
-)
-def read_file(path: str, offset: int = 1, limit: int | None = None) -> str:
+@tool
+def read(path: str, offset: int = 1, limit: int | None = None) -> str:
+    """Read a file with numbered lines. Use offset/limit for large files."""
     print(f"\033[94m[read] {path}" + (f" (lines {offset}-{offset + limit - 1})" if limit else "") + "\033[0m")
     try:
         lines = Path(path).read_text().splitlines()
@@ -190,15 +203,9 @@ def read_file(path: str, offset: int = 1, limit: int | None = None) -> str:
         return f"Error: {e}"
 
 
-@tool(
-    "write_file",
-    "Create or overwrite a file with the given content.",
-    {
-        "path": "File path (relative to working directory).",
-        "content": "Full file content to write.",
-    },
-)
-def write_file(path: str, content: str) -> str:
+@tool
+def write(path: str, content: str) -> str:
+    """Create or overwrite a file with the given content."""
     print(f"\033[94m[write] {path}\033[0m")
     try:
         p = Path(path)
@@ -209,16 +216,9 @@ def write_file(path: str, content: str) -> str:
         return f"Error: {e}"
 
 
-@tool(
-    "edit_file",
-    "Edit a file by replacing an exact unique string match.",
-    {
-        "path": "File path (relative to working directory).",
-        "old_string": "Exact text to find (must be unique in the file).",
-        "new_string": "Replacement text.",
-    },
-)
-def edit_file(path: str, old_string: str, new_string: str) -> str:
+@tool
+def edit(path: str, old_string: str, new_string: str) -> str:
+    """Edit a file by replacing an exact unique string match."""
     print(f"\033[94m[edit] {path}\033[0m")
     try:
         text = Path(path).read_text()
@@ -233,14 +233,9 @@ def edit_file(path: str, old_string: str, new_string: str) -> str:
         return f"Error: {e}"
 
 
-@tool(
-    "glob",
-    "Find files matching a glob pattern (e.g. '**/*.py'). Returns matching paths.",
-    {
-        "pattern": "Glob pattern to match files.",
-    },
-)
-def glob_search(pattern: str) -> str:
+@tool
+def glob(pattern: str) -> str:
+    """Find files matching a glob pattern (e.g. '**/*.py'). Returns matching paths."""
     print(f"\033[94m[glob] {pattern}\033[0m")
     files = _git_files()
     if files:
@@ -250,23 +245,15 @@ def glob_search(pattern: str) -> str:
     return "\n".join(matches) if matches else "No matches found."
 
 
-@tool(
-    "grep",
-    "Search file contents for a regex pattern. Returns file:line:content matches.",
-    {
-        "pattern": "Regex pattern to search for.",
-        "path": {"description": "File or directory to search in. Default: current directory.", "required": False},
-        "include": {"description": "Glob to filter files (e.g. '*.py').", "required": False},
-    },
-)
-def grep_search(pattern: str, path: str = ".", include: str | None = None) -> str:
+@tool
+def grep(pattern: str, path: str = ".", include: str | None = None) -> str:
+    """Search file contents for a regex pattern. Returns file:line:content matches."""
     print(f"\033[94m[grep] /{pattern}/" + (f" in {path}" if path != "." else "") + "\033[0m")
     cmd = f"grep -rn -E {json.dumps(pattern)} {json.dumps(path)}"
     if include:
         cmd += f" --include={json.dumps(include)}"
     try:
-        res = subprocess.run(cmd, shell=True, text=True, capture_output=True, timeout=10)
-        output = res.stdout.strip()
+        output = _shell(cmd, timeout=10).stdout.strip()
         # Limit output to 100 lines
         lines = output.splitlines()[:100]
         return "\n".join(lines) if lines else "No matches found."
@@ -274,15 +261,9 @@ def grep_search(pattern: str, path: str = ".", include: str | None = None) -> st
         return f"Error: {e}"
 
 
-@tool(
-    "websearch",
-    "Search the web using DuckDuckGo. Use for external information not in the project.",
-    {
-        "query": "Search query.",
-        "max_results": "The maximum number of results. Default: 3",
-    },
-)
-def perform_websearch(query: str, max_results: int = 3) -> str:
+@tool
+def websearch(query: str, max_results: int = 3) -> str:
+    """Search the web using DuckDuckGo. Use for external information not in the project."""
     print(f"\033[92m[websearch] {query}\033[0m")
     try:
         results = DDGS().text(query, max_results=max_results)
@@ -292,7 +273,7 @@ def perform_websearch(query: str, max_results: int = 3) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Execution
+# Tool execution: modified for multiple tools
 # ---------------------------------------------------------------------------
 
 
@@ -308,7 +289,7 @@ def execute_tool_call(tool_call) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Agent loop
+# Agent loop: same as chapter 01, but returns a trajectory for tests
 # ---------------------------------------------------------------------------
 
 

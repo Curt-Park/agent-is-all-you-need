@@ -39,7 +39,7 @@ def test_run_agent_read_file(workspace):
     trajectory = run_agent("Read the file test.txt", max_steps=3, enable_hitl=False)
 
     calls = get_tool_calls(trajectory)
-    assert any(c["name"] == "read_file" and c["args"].get("path") == "test.txt" for c in calls)
+    assert any(c["name"] == "read" and c["args"].get("path") == "test.txt" for c in calls)
     # Check if agent read content (agent often outputs content in next turn's message)
     assert "Hello World!" in str(trajectory["messages"])
 
@@ -49,7 +49,7 @@ def test_run_agent_write_file(workspace):
 
     calls = get_tool_calls(trajectory)
     assert any(
-        c["name"] == "write_file" and c["args"].get("path") == "hello.txt" and c["args"].get("content") == "hello_world"
+        c["name"] == "write" and c["args"].get("path") == "hello.txt" and c["args"].get("content") == "hello_world"
         for c in calls
     )
     assert (workspace / "hello.txt").read_text() == "hello_world"
@@ -60,7 +60,7 @@ def test_run_agent_edit_file(workspace):
     trajectory = run_agent("Edit file.txt: replace 'original' with 'new'", max_steps=3, enable_hitl=False)
 
     calls = get_tool_calls(trajectory)
-    assert any(c["name"] == "edit_file" and c["args"].get("path") == "file.txt" for c in calls)
+    assert any(c["name"] == "edit" and c["args"].get("path") == "file.txt" for c in calls)
     assert "new content" in (workspace / "file.txt").read_text()
 
 

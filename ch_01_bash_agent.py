@@ -28,6 +28,7 @@ Usage:
 import argparse
 import json
 import os
+import platform
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -35,20 +36,81 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
-# --- Configuration ---
-# We use an OpenAI-compatible API (works with OpenRouter, Ollama, vLLM, etc.)
-# See .env.example for the required environment variables.
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
 load_dotenv()
 client = OpenAI(base_url=os.getenv("LLM_BASE_URL"), api_key=os.getenv("LLM_API_KEY"))
 MODEL = os.getenv("LLM_MODEL_ID")
 
-# The system prompt tells the LLM *who it is* and *what it can do*.
-# Keeping it simple here — Chapter 02 adds richer project context.
-SYSTEM_PROMPT = f"You are a coding agent at {os.getcwd()}. Use bash to solve tasks."
 
-# Tool schema: this tells the LLM what tools it can call and what arguments
-# they expect. The LLM returns a JSON tool_call matching this schema; we then
-# execute it and feed the result back. This is the OpenAI function-calling format.
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+
+
+def _shell(command: str, timeout: int = 30) -> subprocess.CompletedProcess:
+    """Run a shell command and return the CompletedProcess result."""
+    return subprocess.run(command, shell=True, text=True, capture_output=True, timeout=timeout)
+
+
+# ---------------------------------------------------------------------------
+# Context gathering
+# ---------------------------------------------------------------------------
+
+
+def gather_context() -> str:
+    """Build a project-aware system prompt from the current environment."""
+    cwd = os.getcwd()
+
+    def s(cmd):
+        return _shell(cmd, timeout=5).stdout.strip()
+
+    # File tree — prefer git-aware listing, fall back to top-level ls.
+    try:
+        raw = s("git ls-files") + "\n" + s("git ls-files --others --exclude-standard")
+        files = sorted(set(filter(None, raw.splitlines())))
+    except Exception:
+        files = sorted(p.name for p in Path(cwd).iterdir() if not p.name.startswith("."))
+
+    # Git context — branch, status, recent commits.
+    try:
+        git_info = (
+            f"\n## Git\nBranch: {s('git branch --show-current')}"
+            f"\nStatus: {s('git status --short') or '(clean)'}"
+            f"\nRecent commits:\n{s('git log --oneline -5')}"
+        )
+    except Exception:
+        git_info = ""
+
+    return f"""\
+You are a coding agent. You solve tasks by running bash commands.
+
+# Safety
+- Never run destructive commands (rm -rf, git push --force, git reset --hard)
+  without explicit user confirmation.
+- Avoid commands that could expose secrets (e.g. printing .env files).
+
+# Environment
+- Working directory: {cwd}
+- Platform: {platform.system()} {platform.release()}
+
+## File tree
+{chr(10).join(files) if files else "(empty)"}
+{git_info}"""
+
+
+SYSTEM_PROMPT = gather_context()
+
+
+# ---------------------------------------------------------------------------
+# Tool schema
+# ---------------------------------------------------------------------------
+# This tells the LLM what tools it can call and what arguments they expect.
+# The LLM returns a JSON tool_call matching this schema; we then execute it
+# and feed the result back. This is the OpenAI function-calling format.
+
 TOOLS = [
     {
         "type": "function",
@@ -65,14 +127,24 @@ TOOLS = [
 ]
 
 
-def run_bash_command(command: str) -> str:
+# ---------------------------------------------------------------------------
+# Tool implementation
+# ---------------------------------------------------------------------------
+
+
+def bash(command: str) -> str:
     """Executes a shell command and returns stdout (or stderr if stdout is empty)."""
     print(f"\033[96m$ {command}\033[0m")
     try:
-        res = subprocess.run(command, shell=True, text=True, capture_output=True, timeout=30)
+        res = _shell(command)
         return res.stdout or res.stderr or "(no output)"
     except Exception as e:
         return f"Error: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Tool execution
+# ---------------------------------------------------------------------------
 
 
 def execute_tool_call(tool_call) -> str:
@@ -83,9 +155,14 @@ def execute_tool_call(tool_call) -> str:
     LLM see its mistake and retry, instead of crashing the whole loop.
     """
     try:
-        return run_bash_command(json.loads(tool_call.function.arguments)["command"])
+        return bash(json.loads(tool_call.function.arguments)["command"])
     except (json.JSONDecodeError, KeyError) as e:
         return f"Error parsing tool call: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Agent loop
+# ---------------------------------------------------------------------------
 
 
 def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None:
