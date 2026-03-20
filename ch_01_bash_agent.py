@@ -176,6 +176,8 @@ def execute_tool_call(tool_call: ChatCompletionMessageToolCallUnion) -> str:
         return bash(json.loads(tool_call.function.arguments)["command"])
     except (json.JSONDecodeError, KeyError) as e:
         return f"Error parsing tool call: {e}"
+    except Exception as e:
+        return f"Error: {e}"
 
 
 # ---------------------------------------------------------------------------

@@ -20,7 +20,7 @@ What changed from Chapter 02:
 
 Usage:
 ------
-    $ python ch_03_planning_agent.py "Build a REST API with auth and tests"
+    $ python ch_03_planning_agent.py "Plan Jeju Island travel for 3 days, step-by-step with todo list"
     $ python ch_03_planning_agent.py "Refactor all bash agents into a class" --max-steps 10
 """
 
@@ -56,6 +56,8 @@ and avoid common shell pitfalls.
 - Mark tasks as in_progress before starting, completed when done.
 - Update your todo list as the plan evolves.
 - Always prefer tools over prose when responding.
+- IMPORTANT: When adding, updating, or removing todos, you MUST include todo_list
+  as the LAST tool_call to display the current state after the change.
 
 """ + gather_project_context()
 
@@ -68,6 +70,7 @@ TOOLS: list[dict] = BASE_TOOLS.copy()  # OpenAI function-calling schemas for pla
 DISPATCH: dict[str, callable] = BASE_DISPATCH.copy()  # name -> handler(**kwargs)
 
 VALID_STATUSES = {"pending", "in_progress", "completed"}
+MARKER = {"pending": "[ ]", "in_progress": "[>]", "completed": "[x]"}
 TODO: dict[int, tuple[str, str]] = {}
 
 
@@ -86,7 +89,7 @@ def todo_add(id: int, text: str, status: str = "pending") -> str:
     if status not in VALID_STATUSES:
         return f"Error: status must be one of {VALID_STATUSES}"
     TODO[id] = (text, status)
-    return f"Item {id}: {text} added"
+    return f"Added {MARKER[status]} #{id}\t{text}"
 
 
 @tool(tools=TOOLS, dispatch=DISPATCH)
@@ -129,15 +132,7 @@ def todo_list() -> str:
         return "TODO is empty."
     lines = ""
     for id, (text, status) in sorted(TODO.items()):
-        if status == "pending":
-            lines += "[ ] "
-        elif status == "in_progress":
-            lines += "[>] "
-        elif status == "completed":
-            lines += "[x] "
-        else:
-            return f"Error: invalid status {status} of item {id}: {text}"
-        lines += text + "\n"
+        lines += f"{MARKER[status]} #{id}\t{text}\n"
     return lines
 
 

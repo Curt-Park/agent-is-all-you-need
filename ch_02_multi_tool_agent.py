@@ -286,6 +286,8 @@ def execute_tool_call(tool_call: ChatCompletionMessageToolCallUnion, dispatch: d
         return f"Unknown tool: {name}" if handler is None else handler(**kwargs)
     except (json.JSONDecodeError, KeyError, TypeError) as e:
         return f"Error parsing tool call: {e}"
+    except Exception as e:
+        return f"Error: {e}"
 
 
 # ---------------------------------------------------------------------------
