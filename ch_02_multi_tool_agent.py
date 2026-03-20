@@ -71,11 +71,8 @@ TOOLS: list[dict] = []  # OpenAI function-calling schemas
 DISPATCH: dict[str, callable] = {}  # name -> handler(**kwargs)
 
 
-def tool(func):
-    """Decorator: registers a function as an agent tool using its signature and docstring."""
-    doc = parse(func.__doc__)
-    sig = inspect.signature(func)
-
+def _build_schema(func: callable, doc: object, sig: inspect.Signature) -> dict:
+    """Build an OpenAI function-calling schema from a function's signature and docstring."""
     properties = {}
     required = []
 
@@ -97,7 +94,7 @@ def tool(func):
         if param.default == inspect.Parameter.empty:
             required.append(param_name)
 
-    schema = {
+    return {
         "type": "function",
         "function": {
             "name": func.__name__,
@@ -106,9 +103,33 @@ def tool(func):
         },
     }
 
-    TOOLS.append(schema)
-    DISPATCH[func.__name__] = func
-    return func
+
+def tool(func=None, *, tools: list[dict], dispatch: dict):
+    """Decorator: registers a function as an agent tool.
+
+    Usage:
+        @tool  # Registers to module's TOOLS/DISPATCH
+        @tool(tools=MY_TOOLS, dispatch=MY_DISPATCH)  # Registers to custom registries
+
+    Args:
+        func: The function to register (when used without arguments).
+        tools: Custom tools list to append the schema to.
+        dispatch: Custom dispatch dict to register the handler in.
+    """
+
+    def decorator(f):
+        doc = parse(f.__doc__)
+        sig = inspect.signature(f)
+        schema = _build_schema(f, doc, sig)
+
+        tools.append(schema)
+        dispatch[f.__name__] = f
+        return f
+
+    # Support both @tool and @tool(tools=..., dispatch=...) syntax
+    if func is None:
+        return decorator  # Called with arguments: @tool(tools=..., dispatch=...)
+    return decorator(func)  # Called without arguments: @tool
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +137,7 @@ def tool(func):
 # ---------------------------------------------------------------------------
 
 
-@tool
+@tool(tools=TOOLS, dispatch=DISPATCH)
 def bash(command: str) -> str:
     """Run a shell command. Use for git, tests, installs, or anything without a dedicated tool.
 
@@ -131,7 +152,7 @@ def bash(command: str) -> str:
         return f"Error: {e}"
 
 
-@tool
+@tool(tools=TOOLS, dispatch=DISPATCH)
 def read(path: str, offset: int = 1, limit: int | None = None) -> str:
     """Read a file with numbered lines. Use offset/limit for large files.
 
@@ -155,7 +176,7 @@ def read(path: str, offset: int = 1, limit: int | None = None) -> str:
         return f"Error: {e}"
 
 
-@tool
+@tool(tools=TOOLS, dispatch=DISPATCH)
 def write(path: str, content: str) -> str:
     """Create or overwrite a file with the given content.
 
@@ -173,7 +194,7 @@ def write(path: str, content: str) -> str:
         return f"Error: {e}"
 
 
-@tool
+@tool(tools=TOOLS, dispatch=DISPATCH)
 def edit(path: str, old_string: str, new_string: str) -> str:
     """Edit a file by replacing an exact unique string match.
 
@@ -196,7 +217,7 @@ def edit(path: str, old_string: str, new_string: str) -> str:
         return f"Error: {e}"
 
 
-@tool
+@tool(tools=TOOLS, dispatch=DISPATCH)
 def glob(pattern: str) -> str:
     """Find files matching a glob pattern (e.g. '**/*.py'). Returns matching paths.
 
@@ -212,7 +233,7 @@ def glob(pattern: str) -> str:
     return "\n".join(matches) if matches else "No matches found."
 
 
-@tool
+@tool(tools=TOOLS, dispatch=DISPATCH)
 def grep(pattern: str, path: str = ".", include: str | None = None) -> str:
     """Search file contents for a regex pattern. Returns file:line:content matches.
 
@@ -235,7 +256,7 @@ def grep(pattern: str, path: str = ".", include: str | None = None) -> str:
         return f"Error: {e}"
 
 
-@tool
+@tool(tools=TOOLS, dispatch=DISPATCH)
 def websearch(query: str, max_results: int = 3) -> str:
     """Search the web using DuckDuckGo. Use for external information not in the project.
 
@@ -256,15 +277,20 @@ def websearch(query: str, max_results: int = 3) -> str:
 # ---------------------------------------------------------------------------
 
 
-def execute_tool_call(tool_call: ChatCompletionMessageToolCallUnion) -> str:
+def execute_tool_call(tool_call: ChatCompletionMessageToolCallUnion, dispatch: dict) -> str:
     """Parse a tool call, dispatch to the right handler, and return the output."""
     try:
         name = tool_call.function.name
         kwargs = json.loads(tool_call.function.arguments)
-        handler = DISPATCH.get(name)
+        handler = dispatch.get(name)
         return f"Unknown tool: {name}" if handler is None else handler(**kwargs)
     except (json.JSONDecodeError, KeyError, TypeError) as e:
         return f"Error parsing tool call: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Agent loop
+# ---------------------------------------------------------------------------
 
 
 def run_agent(task: str, max_steps: int = 30, enable_hitl: bool = False) -> list[dict]:
@@ -272,7 +298,7 @@ def run_agent(task: str, max_steps: int = 30, enable_hitl: bool = False) -> list
         task,
         system_prompt=SYSTEM_PROMPT,
         tools=TOOLS,
-        execute_tool_call=execute_tool_call,
+        execute_tool_call=lambda tool_call: execute_tool_call(tool_call, DISPATCH),
         max_steps=max_steps,
         enable_hitl=enable_hitl,
     )
