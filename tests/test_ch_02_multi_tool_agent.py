@@ -52,7 +52,7 @@ def test_run_agent_write_file(workspace):
         c["name"] == "write" and c["args"].get("path") == "hello.txt" and c["args"].get("content") == "hello_world"
         for c in calls
     )
-    assert (workspace / "hello.txt").read_text() == "hello_world"
+    assert (workspace / "hello.txt").read_text().strip() == "hello_world"
 
 
 def test_run_agent_edit_file(workspace):

@@ -41,8 +41,6 @@ from openai import OpenAI
 # ---------------------------------------------------------------------------
 
 load_dotenv()
-client = OpenAI(base_url=os.getenv("LLM_BASE_URL"), api_key=os.getenv("LLM_API_KEY"))
-MODEL = os.getenv("LLM_MODEL_ID")
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +171,9 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None
       2. If the LLM wants to call a tool  -> execute it, append result, next turn.
       3. If the LLM responds with text    -> task is done (or ask for human feedback).
     """
+    client = OpenAI(base_url=os.getenv("LLM_BASE_URL"), api_key=os.getenv("LLM_API_KEY"))
+    model = os.getenv("LLM_MODEL_ID")
+
     # The conversation starts with the system prompt and the user's task.
     # Every LLM response and tool result gets appended here — this growing
     # list IS the agent's memory for this session.
@@ -185,7 +186,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None
         print(f"\n--- Step {step + 1}/{max_steps} ---")
 
         # Ask the LLM: "given this conversation so far, what do you want to do?"
-        response = client.chat.completions.create(model=MODEL, messages=messages, tools=TOOLS).choices[0].message
+        response = client.chat.completions.create(model=model, messages=messages, tools=TOOLS).choices[0].message
 
         # Append the LLM's response to the conversation history.
         # model_dump() converts the response object to a dict for the messages list.
@@ -220,7 +221,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> None
     # what the agent did. Later chapters use these for evaluation and RL.
     trajectory = {
         "task": task,
-        "model": MODEL,
+        "model": model,
         "max_steps": max_steps,
         "steps_used": step + 1,
         "timestamp": datetime.now(UTC).isoformat(),

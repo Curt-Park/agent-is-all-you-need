@@ -47,8 +47,6 @@ from openai import OpenAI
 # ---------------------------------------------------------------------------
 
 load_dotenv()
-client = OpenAI(base_url=os.getenv("LLM_BASE_URL"), api_key=os.getenv("LLM_API_KEY"))
-MODEL = os.getenv("LLM_MODEL_ID")
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +104,7 @@ You are a coding agent. Solve tasks using the provided tools.
 - Avoid commands that could expose secrets (e.g. printing .env files).
 
 # Tool usage
-- Prefer specialized tools (read_file, write_file, edit_file, glob, grep)
+- Prefer specialized tools (read, write, edit, glob, grep)
   over bash for file operations. They are safer, produce structured output,
   and avoid common shell pitfalls.
 - Use bash only for commands that have no dedicated tool
@@ -295,6 +293,9 @@ def execute_tool_call(tool_call) -> str:
 
 def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> dict:
     """Core agent loop: orchestrates the LLM turns and tool execution."""
+    client = OpenAI(base_url=os.getenv("LLM_BASE_URL"), api_key=os.getenv("LLM_API_KEY"))
+    model = os.getenv("LLM_MODEL_ID")
+
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": task},
@@ -303,7 +304,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> dict
     for step in range(max_steps):
         print(f"\n--- Step {step + 1}/{max_steps} ---")
 
-        response = client.chat.completions.create(model=MODEL, messages=messages, tools=TOOLS).choices[0].message
+        response = client.chat.completions.create(model=model, messages=messages, tools=TOOLS).choices[0].message
         messages.append(response.model_dump(exclude_none=True))
 
         if response.content:
@@ -328,7 +329,7 @@ def run_agent(task: str, max_steps: int = 10, enable_hitl: bool = False) -> dict
     # Save the trajectory as a JSON file
     trajectory = {
         "task": task,
-        "model": MODEL,
+        "model": model,
         "max_steps": max_steps,
         "steps_used": step + 1,
         "timestamp": datetime.now(UTC).isoformat(),
