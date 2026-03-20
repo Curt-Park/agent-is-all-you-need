@@ -25,11 +25,13 @@ Usage:
 """
 
 import argparse
+from typing import Literal, TypedDict
 
 # reuse
 from ch_01_bash_agent import Colors, _run_agent, gather_project_context
-from ch_02_multi_tool_agent import execute_tool_call, tool, TOOLS as BASE_TOOLS, DISPATCH as BASE_DISPATCH
-
+from ch_02_multi_tool_agent import DISPATCH as BASE_DISPATCH
+from ch_02_multi_tool_agent import TOOLS as BASE_TOOLS
+from ch_02_multi_tool_agent import execute_tool_call, tool
 
 # ---------------------------------------------------------------------------
 # Context gathering
@@ -37,6 +39,12 @@ from ch_02_multi_tool_agent import execute_tool_call, tool, TOOLS as BASE_TOOLS,
 
 SYSTEM_PROMPT = """\
 You are a coding agent. Solve tasks using the provided tools.
+
+# Planning
+- Use todo tool to plan For multi-step tasks.
+- Mark tasks as in_progress before starting, completed when done.
+- Update your todo list as the plan evolves.
+- Always prefer tools over prose when responding.
 
 # Safety
 - Never run destructive commands (rm -rf, git push --force, git reset --hard)
@@ -51,12 +59,6 @@ and avoid common shell pitfalls.
 (e.g. running tests, installing packages, git commands).
 - Use websearch for information not available in the project.
 
-# Planning
-- For multi-step tasks, create a todo list first with todo_add.
-- Mark tasks as in_progress before starting, completed when done.
-- Update your todo list as the plan evolves.
-- Always prefer tools over prose when responding.
-
 """ + gather_project_context()
 
 
@@ -68,7 +70,15 @@ TOOLS: list[dict] = BASE_TOOLS.copy()  # OpenAI function-calling schemas for pla
 DISPATCH: dict[str, callable] = BASE_DISPATCH.copy()  # name -> handler(**kwargs)
 
 MARKER = {"pending": "[ ]", "in_progress": "[>]", "completed": "[x]"}
-TODO: list[dict] = []
+
+
+class TodoItem(TypedDict):
+    id: int
+    text: str
+    status: Literal["pending", "in_progress", "completed"]
+
+
+TODO: list[TodoItem] = []
 
 
 def render() -> str:
@@ -84,24 +94,16 @@ def render() -> str:
 
 
 @tool(tools=TOOLS, dispatch=DISPATCH)
-def todo(items: list[dict]) -> str:
+def todo(items: list[TodoItem], max_todos: int = 20) -> str:
     """Update task list. Track progress on multi-step tasks.
 
-    Schema:
-        items: List of todo items to update.
-            - id: Unique identifier (integer, starting from 1)
-            - text: Task description (string)
-            - status: Task status (enum: pending, in_progress, completed)
-
     Args:
-        items: List of todo items. Each item is a dict with:
-            - id (int): Unique identifier. Use incrementing integers starting from 1.
-            - text (str): The task description or instruction text.
-            - status (str): Current status. One of: 'pending' (not started),
-              'in_progress' (being worked on), 'completed' (finished)
+        items: List of todo items.
+        max_todos: Maximum number of todo items, Default to 20.
     """
+    if len(items) > max_todos:
+        raise ValueError(f"Max {max_todos} todos allowed")
     print(f"{Colors.MAGENTA}[todo] updating {len(items)} items{Colors.RESET}")
-
     TODO[:] = items
     return render()
 

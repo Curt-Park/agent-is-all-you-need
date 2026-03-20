@@ -31,7 +31,9 @@ import argparse
 import fnmatch
 import inspect
 import json
+import types
 from pathlib import Path
+from typing import Literal, get_args, get_origin, get_type_hints
 
 from ddgs import DDGS
 from docstring_parser import parse
@@ -71,25 +73,58 @@ TOOLS: list[dict] = []  # OpenAI function-calling schemas
 DISPATCH: dict[str, callable] = {}  # name -> handler(**kwargs)
 
 
+_PRIMITIVE_MAP = {str: "string", int: "integer", float: "number", bool: "boolean"}
+
+
+def _type_to_schema(t) -> dict:
+    """Convert a Python type annotation to a JSON schema dict."""
+    # Primitives
+    if t in _PRIMITIVE_MAP:
+        return {"type": _PRIMITIVE_MAP[t]}
+
+    origin = get_origin(t)
+    args = get_args(t)
+
+    # Literal["a", "b"] → {"type": "string", "enum": [...]}
+    if origin is Literal:
+        return {"type": "string", "enum": list(args)}
+
+    # list[X] → {"type": "array", "items": ...}
+    if origin is list:
+        return {"type": "array", "items": _type_to_schema(args[0]) if args else {"type": "string"}}
+
+    # X | None → schema(X)
+    if origin is types.UnionType:
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            return _type_to_schema(non_none[0])
+
+    # TypedDict → {"type": "object", "properties": ..., "required": ...}
+    if isinstance(t, type) and issubclass(t, dict) and hasattr(t, "__annotations__"):
+        hints = get_type_hints(t, include_extras=True)
+        required_keys = getattr(t, "__required_keys__", set(hints.keys()))
+        props = {k: _type_to_schema(v) for k, v in hints.items()}
+        schema = {"type": "object", "properties": props}
+        if required_keys:
+            schema["required"] = sorted(required_keys)
+        return schema
+
+    return {"type": "string"}
+
+
 def _build_schema(func: callable, doc: object, sig: inspect.Signature) -> dict:
     """Build an OpenAI function-calling schema from a function's signature and docstring."""
     properties = {}
     required = []
 
-    # Map Python types to JSON schema types
-    type_map = {str: "string", int: "integer", float: "number", bool: "boolean", type(None): "string"}
-
     for param_name, param in sig.parameters.items():
         doc_param = next((p for p in doc.params if p.arg_name == param_name), None)
 
-        # Get type
-        t = param.annotation
-        p_type = type_map.get(t, "string")
+        prop = _type_to_schema(param.annotation)
+        if doc_param and doc_param.description:
+            prop["description"] = doc_param.description
 
-        properties[param_name] = {
-            "type": p_type,
-            "description": doc_param.description if doc_param else "",
-        }
+        properties[param_name] = prop
 
         if param.default == inspect.Parameter.empty:
             required.append(param_name)
