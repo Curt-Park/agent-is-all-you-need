@@ -156,7 +156,7 @@ def _extract_final_response(trajectory: dict) -> str:
     that gets returned to the parent.
     """
     for msg in reversed(trajectory["messages"]):
-        if msg.get("role") == "assistant" and msg.get("content"):
+        if msg.get("role") == "assistant" and isinstance(msg.get("content"), str):
             return msg["content"]
     return "(Child agent produced no text response)"
 
@@ -201,7 +201,9 @@ def _spawn_child(
     # Build child tool sets at call time, so the task tool is guaranteed
     # to be in tools/dispatch and we can correctly exclude it.
     child_tools = [t for t in tools if t["function"]["name"] != "task"]
-    child_dispatch = {k: v for k, v in dispatch.items() if k != "task"}
+    full_child_dispatch = dispatch.copy()
+    full_child_dispatch.pop("task", None)
+    child_dispatch = full_child_dispatch
 
     # Spawn a child agent with fresh context.  The child gets:
     #   - Its own system prompt (no Subagents section)
@@ -210,6 +212,9 @@ def _spawn_child(
     #   - Lower max_steps (subtasks should be focused)
     #   - No HITL (children run autonomously)
     #
+    def child_dispatch_func(tc):
+        return execute_tool_call(tc, child_dispatch)
+
     # We suppress the child's stdout so its step-by-step logs don't
     # clutter the parent's console.  Only the parent's "[task]" line
     # and the child's final response are visible.
@@ -218,7 +223,7 @@ def _spawn_child(
             task=description,
             system_prompt=child_system_prompt,
             tools=child_tools,
-            execute_tool_call=lambda tc: execute_tool_call(tc, child_dispatch),
+            execute_tool_call=child_dispatch_func,
             max_steps=max_steps,
             enable_hitl=False,
         )

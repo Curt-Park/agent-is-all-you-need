@@ -127,7 +127,11 @@ def _discover_skills(skills_dir: Path = SKILLS_DIR) -> dict[str, dict]:
     if not skills_dir.is_dir():
         return skills
     for skill_file in sorted(skills_dir.rglob("SKILL.md")):
-        text = skill_file.read_text()
+        try:
+            text = skill_file.read_text()
+        except (OSError, UnicodeDecodeError) as e:
+            print(f"Failed to read skill file {skill_file}: {e}")
+            continue
         meta, body = _parse_frontmatter(text)
         name = meta.get("name", skill_file.parent.name)
         skills[name] = {

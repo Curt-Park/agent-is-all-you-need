@@ -40,15 +40,15 @@ def test_extract_final_response_skips_empty_string():
     assert _extract_final_response(trajectory) == "Real answer."
 
 
-def test_extract_final_response_all_empty_returns_fallback():
-    """Should return fallback when all assistant messages have empty content."""
+def test_extract_final_response_all_empty_returns_empty():
+    """Should return empty string when only empty-string assistant messages exist."""
     trajectory = {
         "messages": [
             {"role": "assistant", "content": ""},
             {"role": "assistant", "content": None},
         ]
     }
-    assert "no text response" in _extract_final_response(trajectory).lower()
+    assert _extract_final_response(trajectory) == ""
 
 
 def test_extract_final_response_no_assistant():
