@@ -22,11 +22,15 @@ What changed from Chapter 03:
 
 Usage:
 ------
-    $ python ch_04_subagent_agent.py "Research Python dataclasses and create a summary file"
-    $ python ch_04_subagent_agent.py "Create hello.txt and world.txt with appropriate content" --max-steps 15
+    $ python ch_04_subagent.py "Research both Python dataclasses and Pydantic, \\
+        then write a comparison summarizing pros and cons of each"
+    $ python ch_04_subagent.py "Read every .py file in this project, \\
+        summarize what each does, then create an INDEX.md" --max-steps 20
 """
 
 import argparse
+import contextlib
+import io
 
 # -- Reuse from earlier chapters --------------------------------------------
 # Each chapter builds on the previous one.  We import the core agent loop
@@ -57,10 +61,12 @@ You are a coding agent. Solve tasks using the provided tools.
 - Always prefer tools over prose when responding.
 
 # Subagents
-- Use the task tool to delegate self-contained subtasks to a child agent.
-- Each child agent gets a fresh context — it cannot see your conversation.
-- Write clear, specific task descriptions so the child can work independently.
-- Use subagents for tasks that are independent and don't need your conversation history.
+- When a task requires applying the same operation to multiple items
+  (e.g. summarize each file, research each topic, process each URL),
+  you MUST delegate each item by calling the task tool — do NOT do them yourself.
+- Call the task tool multiple times in a single response to run subtasks in parallel.
+- Each child agent gets a fresh context — it cannot see your conversation,
+  so write clear, self-contained task descriptions.
 
 # Safety
 - Never run destructive commands (rm -rf, git push --force, git reset --hard)
@@ -172,7 +178,7 @@ def _extract_final_response(trajectory: dict) -> str:
 
 @tool(tools=TOOLS, dispatch=DISPATCH)
 def task(description: str, max_steps: int = 15) -> str:
-    """Delegate a subtask to a child agent with fresh context.
+    """Spawn a subagent with fresh context. It shares the filesystem but not conversation history.
 
     Args:
         description: A clear, self-contained description of the subtask.
@@ -191,14 +197,19 @@ def task(description: str, max_steps: int = 15) -> str:
     #   - All tools except task (no grandchildren)
     #   - Lower max_steps (subtasks should be focused)
     #   - No HITL (children run autonomously)
-    trajectory = _run_agent(
-        task=description,
-        system_prompt=CHILD_SYSTEM_PROMPT,
-        tools=child_tools,
-        execute_tool_call=lambda tc: execute_tool_call(tc, child_dispatch),
-        max_steps=max_steps,
-        enable_hitl=False,
-    )
+    #
+    # We suppress the child's stdout so its step-by-step logs don't
+    # clutter the parent's console.  Only the parent's "[task]" line
+    # and the child's final response are visible.
+    with contextlib.redirect_stdout(io.StringIO()):
+        trajectory = _run_agent(
+            task=description,
+            system_prompt=CHILD_SYSTEM_PROMPT,
+            tools=child_tools,
+            execute_tool_call=lambda tc: execute_tool_call(tc, child_dispatch),
+            max_steps=max_steps,
+            enable_hitl=False,
+        )
 
     return _extract_final_response(trajectory)
 

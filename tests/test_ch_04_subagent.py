@@ -1,6 +1,6 @@
 from conftest import get_task_calls
 
-from ch_04_subagent_agent import run_agent
+from ch_04_subagent import run_agent
 
 
 def test_task_tool_is_used_for_delegation(workspace):
