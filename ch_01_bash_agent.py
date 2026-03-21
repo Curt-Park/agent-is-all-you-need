@@ -93,7 +93,7 @@ def git_files() -> list[str]:
     Combines two git commands to get a complete picture:
       - `git ls-files` — all tracked files.
       - `git ls-files --others --exclude-standard` — new untracked files
-        (but not those in .gitignore).
+        (but not those in .gitignore for security and compact information).
     """
     try:
 
@@ -257,7 +257,7 @@ def execute_tool_call(tool_call: ChatCompletionMessageToolCallUnion) -> str:
 #
 # _run_agent() is the reusable core; run_agent() is the chapter-specific
 # wrapper that plugs in the right system prompt, tools, and dispatch logic.
-# Later chapters (02, 03) reuse _run_agent with different tools.
+# Later chapters reuse _run_agent with different tools.
 
 
 def _run_agent(

@@ -5,6 +5,10 @@ import shutil
 from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
+
+if os.path.exists(".env.test"):
+    load_dotenv(".env.test", override=True)
 
 
 @pytest.fixture

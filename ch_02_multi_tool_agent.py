@@ -93,6 +93,7 @@ DISPATCH: dict[str, callable] = {}  # name -> handler(**kwargs) (used at runtime
 # parameters.  We use Pydantic's TypeAdapter to convert Python type hints
 # (str, int, int | None, etc.) into JSON Schema snippets automatically.
 
+
 def _resolve_refs(schema: dict, defs: dict) -> dict:
     """Inline $ref references so the schema is self-contained.
 
@@ -160,6 +161,7 @@ def _build_schema(func: callable, doc: object, sig: inspect.Signature) -> dict:
 
 
 # -- The @tool decorator itself ----------------------------------------------
+
 
 def tool(func=None, *, tools: list[dict], dispatch: dict):
     """Decorator: registers a function as an agent tool.

@@ -3,5 +3,6 @@ plans
 __pycache__
 logs
 .env
+.env.test
 .venv
 test_workspace_*

@@ -80,6 +80,7 @@ cp .env.example .env   # fill in your key — works with any OpenAI-compatible A
 python ch_01_bash_agent.py "List current files"
 
 # 6. Run tests
+cp .env.example .env.test   # if you want different setups for testing
 pytest tests/test_ch_01_bash_agent.py
 ```
  

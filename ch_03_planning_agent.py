@@ -133,6 +133,7 @@ def render(items: list[TodoItem]) -> str:
 # is the source of truth for the plan, not any server-side state.  Simple,
 # and it means the plan is automatically included in trajectory logs.
 
+
 @tool(tools=TOOLS, dispatch=DISPATCH)
 def todo(items: list[TodoItem]) -> str:
     """Update task list. Track progress on multi-step tasks.
