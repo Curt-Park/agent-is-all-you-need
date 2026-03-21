@@ -1,17 +1,6 @@
-import json
+from conftest import get_todo_calls
 
 from ch_03_planning_agent import run_agent
-
-
-def get_todo_calls(trajectory):
-    """Extract parsed arguments from all todo tool calls in the trajectory."""
-    calls = []
-    for msg in trajectory["messages"]:
-        if isinstance(msg, dict) and msg.get("tool_calls"):
-            for tc in msg["tool_calls"]:
-                if tc["function"]["name"] == "todo":
-                    calls.append(json.loads(tc["function"]["arguments"]))
-    return calls
 
 
 def test_planning_creates_pending_then_completes_all(workspace):

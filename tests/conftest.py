@@ -1,5 +1,6 @@
-"""Shared pytest fixtures for all tests."""
+"""Shared pytest fixtures and helpers for all tests."""
 
+import json
 import os
 import shutil
 from pathlib import Path
@@ -25,3 +26,25 @@ def workspace():
     os.chdir(original_cwd)
     if ws.exists():
         shutil.rmtree(ws, ignore_errors=True)
+
+
+def get_tool_calls(trajectory):
+    """Extract all tool calls from a trajectory."""
+    calls = []
+    for msg in trajectory["messages"]:
+        if isinstance(msg, dict) and msg.get("tool_calls"):
+            for tc in msg["tool_calls"]:
+                name = tc["function"]["name"]
+                args = json.loads(tc["function"]["arguments"])
+                calls.append({"name": name, "args": args})
+    return calls
+
+
+def get_todo_calls(trajectory):
+    """Extract parsed arguments from all todo tool calls in the trajectory."""
+    return [c["args"] for c in get_tool_calls(trajectory) if c["name"] == "todo"]
+
+
+def get_task_calls(trajectory):
+    """Extract parsed arguments from all task tool calls in the trajectory."""
+    return [c for c in get_tool_calls(trajectory) if c["name"] == "task"]

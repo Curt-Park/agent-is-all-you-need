@@ -1,18 +1,6 @@
-import json
+from conftest import get_tool_calls
 
 from ch_02_multi_tool_agent import run_agent
-
-
-def get_tool_calls(trajectory):
-    """Helper to extract all tool calls made during a trajectory."""
-    calls = []
-    for msg in trajectory["messages"]:
-        if isinstance(msg, dict) and "tool_calls" in msg and msg["tool_calls"]:
-            for tc in msg["tool_calls"]:
-                name = tc["function"]["name"]
-                args = json.loads(tc["function"]["arguments"])
-                calls.append({"name": name, "args": args})
-    return calls
 
 
 def test_run_agent_read_file(workspace):
