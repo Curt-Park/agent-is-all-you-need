@@ -176,7 +176,7 @@ def _extract_final_response(trajectory: dict) -> str:
 # a clean, predictable depth of exactly 1 (parent → child).
 
 
-def spawn_child(
+def _spawn_child(
     description: str,
     child_system_prompt: str,
     tools: list[dict],
@@ -234,7 +234,7 @@ def task(description: str, max_steps: int = 15) -> str:
         description: A clear, self-contained description of the subtask.
         max_steps: Maximum number of results to return. Defaults to 15.
     """
-    return spawn_child(description, CHILD_SYSTEM_PROMPT, TOOLS, DISPATCH, max_steps)
+    return _spawn_child(description, CHILD_SYSTEM_PROMPT, TOOLS, DISPATCH, max_steps)
 
 
 # ---------------------------------------------------------------------------

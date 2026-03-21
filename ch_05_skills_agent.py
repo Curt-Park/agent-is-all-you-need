@@ -49,7 +49,7 @@ from ch_01_bash_agent import Colors, _run_agent, gather_project_context
 from ch_02_multi_tool_agent import execute_tool_call, tool
 from ch_04_subagent import DISPATCH as BASE_DISPATCH
 from ch_04_subagent import TOOLS as BASE_TOOLS
-from ch_04_subagent import spawn_child
+from ch_04_subagent import _spawn_child
 
 # ---------------------------------------------------------------------------
 # Skill loading — two-layer knowledge injection
@@ -316,7 +316,7 @@ def task(description: str, max_steps: int = 15) -> str:
         description: A clear, self-contained description of the subtask.
         max_steps: Maximum number of results to return. Defaults to 15.
     """
-    return spawn_child(description, CHILD_SYSTEM_PROMPT, TOOLS, DISPATCH, max_steps)
+    return _spawn_child(description, CHILD_SYSTEM_PROMPT, TOOLS, DISPATCH, max_steps)
 
 
 # ---------------------------------------------------------------------------
