@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ch_05_skills_agent import (
+from ch_05_skills import (
     _discover_skills,
     _parse_frontmatter,
     get_skill_descriptions,

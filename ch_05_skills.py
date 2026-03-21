@@ -1,5 +1,5 @@
 """
-Chapter 05. Skills Agent
+Chapter 05. Skills
 ========================
 
 Extends the subagent system with on-demand domain expertise via SKILL.md files.
@@ -31,9 +31,9 @@ What changed from Chapter 04:
 
 Usage:
 ------
-    $ python ch_05_skills_agent.py "Review ch_04_subagent.py for code quality"
-    $ python ch_05_skills_agent.py "Write documentation for the skill loader"
-    $ python ch_05_skills_agent.py "Generate tests for the todo tool in ch_03"
+    $ python ch_05_skills.py "Review ch_04_subagent.py for code quality"
+    $ python ch_05_skills.py "Write documentation for the skill loader"
+    $ python ch_05_skills.py "Generate tests for the todo tool in ch_03"
 """
 
 import argparse

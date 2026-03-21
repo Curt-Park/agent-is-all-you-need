@@ -26,7 +26,7 @@ Build the agent harness step by step, evaluating every piece you add.
 | 02 | Multi-Tool Agent | [ch_02_multi_tool_agent.py](ch_02_multi_tool_agent.py) | [unit](tests/test_ch_02_multi_tool_agent.py) / [agent](tests/agent/test_ch_02_multi_tool_agent.py) | ✅ |
 | 03 | Planning Agent | [ch_03_planning_agent.py](ch_03_planning_agent.py) | [unit](tests/test_ch_03_planning_agent.py) / [agent](tests/agent/test_ch_03_planning_agent.py) | ✅ |
 | 04 | Subagent | [ch_04_subagent.py](ch_04_subagent.py) | [unit](tests/test_ch_04_subagent.py) / [agent](tests/agent/test_ch_04_subagent.py) | ✅ |
-| 05 | Skills Agent | [ch_05_skills_agent.py](ch_05_skills_agent.py) | [unit](tests/test_ch_05_skills_agent.py) / [agent](tests/agent/test_ch_05_skills_agent.py) | ✅ |
+| 05 | Skills Agent | [ch_05_skills.py](ch_05_skills.py) | [unit](tests/test_ch_05_skills.py) / [agent](tests/agent/test_ch_05_skills.py) | ✅ |
 | 06 | Context Compact | | | |
 | 07 | Tasks (Persistence) | | | |
 | 08 | Background Tasks | | | |
