@@ -1,5 +1,5 @@
 """
-Chapter 04. Subagent Agent
+Chapter 04. Subagent
 ===========================
 
 Extends the planning agent with subtask delegation via child agents.

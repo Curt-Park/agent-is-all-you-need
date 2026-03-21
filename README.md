@@ -25,7 +25,7 @@ Build the agent harness step by step, evaluating every piece you add.
 | 01 | Bash Agent | [ch_01_bash_agent.py](ch_01_bash_agent.py) | [test_ch_01_bash_agent.py](tests/test_ch_01_bash_agent.py) | ✅ |
 | 02 | Multi-Tool Agent | [ch_02_multi_tool_agent.py](ch_02_multi_tool_agent.py) | [test_ch_02_multi_tool_agent.py](tests/test_ch_02_multi_tool_agent.py) | ✅ |
 | 03 | Planning Agent | [ch_03_planning_agent.py](ch_03_planning_agent.py) | [test_ch_03_planning_agent.py](tests/test_ch_03_planning_agent.py) | ✅ |
-| 04 | Subagent | [ch_04_subagent_agent.py](ch_04_subagent_agent.py) | [test_ch_04_subagent_agent.py](tests/test_ch_04_subagent_agent.py) | ✅ |
+| 04 | Subagent | [ch_04_subagent.py](ch_04_subagent.py) | [test_ch_04_subagent.py](tests/test_ch_04_subagent.py) | ✅ |
 | 05 | Skills Agent | | | |
 | 06 | Context Compact | | | |
 | 07 | Tasks (Persistence) | | | |
