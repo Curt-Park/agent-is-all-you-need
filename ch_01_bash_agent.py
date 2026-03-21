@@ -75,14 +75,14 @@ def shell(command: str, timeout: int = 30) -> subprocess.CompletedProcess:
     return subprocess.run(command, shell=True, text=True, capture_output=True, timeout=timeout)
 
 
-def run_quiet(cmd: str) -> str:
+def run_quiet(cmd: str, timeout: int = 5) -> str:
     """Run a shell command, return stdout stripped, or empty string on failure.
 
     A convenience wrapper for context-gathering calls where we don't want a
     failure (e.g. "not a git repo") to crash the startup.
     """
     try:
-        return shell(cmd, timeout=5).stdout.strip()
+        return shell(cmd, timeout=timeout).stdout.strip()
     except Exception:
         return ""
 
@@ -96,11 +96,7 @@ def git_files() -> list[str]:
         (but not those in .gitignore for security and compact information).
     """
     try:
-
-        def s(cmd):
-            return run_quiet(cmd, timeout=5).stdout.strip()
-
-        raw = s("git ls-files") + "\n" + s("git ls-files --others --exclude-standard")
+        raw = run_quiet("git ls-files") + "\n" + run_quiet("git ls-files --others --exclude-standard")
         return sorted(set(filter(None, raw.splitlines())))
     except Exception:
         return []

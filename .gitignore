@@ -6,3 +6,4 @@ logs
 .env.test
 .venv
 test_workspace_*
+.coverage

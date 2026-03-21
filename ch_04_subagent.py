@@ -176,20 +176,32 @@ def _extract_final_response(trajectory: dict) -> str:
 # a clean, predictable depth of exactly 1 (parent → child).
 
 
-@tool(tools=TOOLS, dispatch=DISPATCH)
-def task(description: str, max_steps: int = 15) -> str:
-    """Spawn a subagent with fresh context. It shares the filesystem but not conversation history.
+def spawn_child(
+    description: str,
+    child_system_prompt: str,
+    tools: list[dict],
+    dispatch: dict[str, callable],
+    max_steps: int = 15,
+) -> str:
+    """Spawn a child agent with fresh context and return its final response.
+
+    This is the shared implementation behind the ``task`` tool.  Each chapter
+    provides its own child system prompt and tool set; the spawning logic
+    stays in one place.
 
     Args:
-        description: A clear, self-contained description of the subtask.
-        max_steps: Maximum number of results to return. Defaults to 15.
+        description: Self-contained description of the subtask.
+        child_system_prompt: System prompt for the child agent.
+        tools: The parent's TOOLS list (task tool will be excluded for children).
+        dispatch: The parent's DISPATCH dict (task will be excluded for children).
+        max_steps: Maximum steps the child may take.
     """
     print(f"{Colors.CYAN}[task] Delegating: {description}{Colors.RESET}")
 
     # Build child tool sets at call time, so the task tool is guaranteed
-    # to be in TOOLS/DISPATCH and we can correctly exclude it.
-    child_tools = [t for t in TOOLS if t["function"]["name"] != "task"]
-    child_dispatch = {k: v for k, v in DISPATCH.items() if k != "task"}
+    # to be in tools/dispatch and we can correctly exclude it.
+    child_tools = [t for t in tools if t["function"]["name"] != "task"]
+    child_dispatch = {k: v for k, v in dispatch.items() if k != "task"}
 
     # Spawn a child agent with fresh context.  The child gets:
     #   - Its own system prompt (no Subagents section)
@@ -204,7 +216,7 @@ def task(description: str, max_steps: int = 15) -> str:
     with contextlib.redirect_stdout(io.StringIO()):
         trajectory = _run_agent(
             task=description,
-            system_prompt=CHILD_SYSTEM_PROMPT,
+            system_prompt=child_system_prompt,
             tools=child_tools,
             execute_tool_call=lambda tc: execute_tool_call(tc, child_dispatch),
             max_steps=max_steps,
@@ -212,6 +224,17 @@ def task(description: str, max_steps: int = 15) -> str:
         )
 
     return _extract_final_response(trajectory)
+
+
+@tool(tools=TOOLS, dispatch=DISPATCH)
+def task(description: str, max_steps: int = 15) -> str:
+    """Spawn a subagent with fresh context. It shares the filesystem but not conversation history.
+
+    Args:
+        description: A clear, self-contained description of the subtask.
+        max_steps: Maximum number of results to return. Defaults to 15.
+    """
+    return spawn_child(description, CHILD_SYSTEM_PROMPT, TOOLS, DISPATCH, max_steps)
 
 
 # ---------------------------------------------------------------------------

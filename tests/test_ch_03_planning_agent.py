@@ -1,23 +1,51 @@
-from conftest import get_todo_calls
+"""Unit tests for ch_03 planning agent functions (no LLM calls)."""
 
-from ch_03_planning_agent import run_agent
+import pytest
+
+from ch_03_planning_agent import render
 
 
-def test_planning_creates_pending_then_completes_all(workspace):
-    trajectory = run_agent(
-        "Write 'hello' to hello.txt, then write 'world' to world.txt. Use the todo tool to plan first.",
-        max_steps=10,
-        enable_hitl=False,
-    )
+def test_render_empty():
+    """render() should handle an empty list."""
+    assert render([]) == "TODO is empty."
 
-    todo_calls = get_todo_calls(trajectory)
-    assert len(todo_calls) >= 2, "Expected at least 2 todo calls (initial plan + final update)"
 
-    # First todo call: all items should be pending
-    first_items = todo_calls[0]["items"]
-    assert len(first_items) > 0
-    assert all(item["status"] in {"pending", "in_progress"} for item in first_items)
+def test_render_pending_items():
+    """render() should show [ ] for pending items."""
+    items = [{"id": 1, "text": "Do thing", "status": "pending"}]
+    output = render(items)
+    assert "[ ] #1: Do thing" in output
+    assert "(0/1 completed)" in output
 
-    # Last todo call: all items should be completed
-    last_items = todo_calls[-1]["items"]
-    assert all(item["status"] == "completed" for item in last_items)
+
+def test_render_in_progress():
+    """render() should show [>] for in-progress items."""
+    items = [{"id": 1, "text": "Working", "status": "in_progress"}]
+    output = render(items)
+    assert "[>] #1: Working" in output
+
+
+def test_render_completed():
+    """render() should show [x] for completed items."""
+    items = [{"id": 1, "text": "Done", "status": "completed"}]
+    output = render(items)
+    assert "[x] #1: Done" in output
+    assert "(1/1 completed)" in output
+
+
+def test_render_mixed_statuses():
+    """render() should show correct counts for mixed statuses."""
+    items = [
+        {"id": 1, "text": "A", "status": "completed"},
+        {"id": 2, "text": "B", "status": "in_progress"},
+        {"id": 3, "text": "C", "status": "pending"},
+    ]
+    output = render(items)
+    assert "(1/3 completed)" in output
+
+
+def test_render_invalid_status_raises():
+    """render() should raise KeyError for an unrecognized status."""
+    items = [{"id": 1, "text": "Bad", "status": "unknown"}]
+    with pytest.raises(KeyError):
+        render(items)

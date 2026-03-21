@@ -16,6 +16,7 @@ dependencies = [
     "ruff>=0.14.3",
     "pytest>=8.4.2",
     "pytest-xdist>=3.8.0",
+    "pytest-cov>=7.0.0",
 ]
 
 [tool.ruff]
@@ -43,4 +44,22 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "-n", "auto",
+    "--ignore=tests/agent",
 ]
+
+[tool.coverage.run]
+source = [
+    "ch_01_bash_agent",
+    "ch_02_multi_tool_agent",
+    "ch_03_planning_agent",
+    "ch_04_subagent",
+    "ch_05_skills_agent",
+]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "if __name__",
+    "def main",
+]
+

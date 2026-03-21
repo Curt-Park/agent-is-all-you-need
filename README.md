@@ -22,11 +22,11 @@ Build the agent harness step by step, evaluating every piece you add.
  
 | Ch. | Focus | Code | Tests | Progress |
 | :-- | :---- | :--- | :---- | :--- |
-| 01 | Bash Agent | [ch_01_bash_agent.py](ch_01_bash_agent.py) | [test_ch_01_bash_agent.py](tests/test_ch_01_bash_agent.py) | ✅ |
-| 02 | Multi-Tool Agent | [ch_02_multi_tool_agent.py](ch_02_multi_tool_agent.py) | [test_ch_02_multi_tool_agent.py](tests/test_ch_02_multi_tool_agent.py) | ✅ |
-| 03 | Planning Agent | [ch_03_planning_agent.py](ch_03_planning_agent.py) | [test_ch_03_planning_agent.py](tests/test_ch_03_planning_agent.py) | ✅ |
-| 04 | Subagent | [ch_04_subagent.py](ch_04_subagent.py) | [test_ch_04_subagent.py](tests/test_ch_04_subagent.py) | ✅ |
-| 05 | Skills Agent | | | |
+| 01 | Bash Agent | [ch_01_bash_agent.py](ch_01_bash_agent.py) | [unit](tests/test_ch_01_bash_agent.py) / [agent](tests/agent/test_ch_01_bash_agent.py) | ✅ |
+| 02 | Multi-Tool Agent | [ch_02_multi_tool_agent.py](ch_02_multi_tool_agent.py) | [unit](tests/test_ch_02_multi_tool_agent.py) / [agent](tests/agent/test_ch_02_multi_tool_agent.py) | ✅ |
+| 03 | Planning Agent | [ch_03_planning_agent.py](ch_03_planning_agent.py) | [unit](tests/test_ch_03_planning_agent.py) / [agent](tests/agent/test_ch_03_planning_agent.py) | ✅ |
+| 04 | Subagent | [ch_04_subagent.py](ch_04_subagent.py) | [unit](tests/test_ch_04_subagent.py) / [agent](tests/agent/test_ch_04_subagent.py) | ✅ |
+| 05 | Skills Agent | [ch_05_skills_agent.py](ch_05_skills_agent.py) | [unit](tests/test_ch_05_skills_agent.py) / [agent](tests/agent/test_ch_05_skills_agent.py) | ✅ |
 | 06 | Context Compact | | | |
 | 07 | Tasks (Persistence) | | | |
 | 08 | Background Tasks | | | |
@@ -78,10 +78,19 @@ cp .env.example .env   # fill in your key — works with any OpenAI-compatible A
  
 # 5. Start
 python ch_01_bash_agent.py "List current files"
+```
 
-# 6. Run tests
+## Tests
+
+```bash
+# Run tests
 cp .env.example .env.test   # if you want different setups for testing
-pytest tests/test_ch_01_bash_agent.py
+make test-unit                # unit tests only (no LLM calls, with coverage)
+make test-agent               # agent integration tests (requires LLM API)
+
+# Run a specific test file or function
+python -m pytest tests/agent/test_ch_04_subagent.py -v  # specific test suite
+python -m pytest tests/agent -k "skill" -v  # with keyword filter
 ```
  
 ## Credits

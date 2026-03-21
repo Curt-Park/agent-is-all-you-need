@@ -1,60 +1,75 @@
-from conftest import get_task_calls
+"""Unit tests for ch_04 subagent functions (no LLM calls)."""
 
-from ch_04_subagent import run_agent
-
-
-def test_task_tool_is_used_for_delegation(workspace):
-    """Basic delegation: parent delegates a file-write to a child agent."""
-    trajectory = run_agent(
-        "Delegate to a subagent: have it write 'hello from child' to child_output.txt",
-        max_steps=10,
-        enable_hitl=False,
-    )
-
-    task_calls = get_task_calls(trajectory)
-    assert len(task_calls) >= 1, "Expected at least 1 task tool call"
-    assert (workspace / "child_output.txt").exists(), "child_output.txt should exist"
-    assert "hello from child" in (workspace / "child_output.txt").read_text()
+from ch_04_subagent import DISPATCH, TOOLS, _extract_final_response
 
 
-def test_child_context_isolation(workspace):
-    """Parent creates a file, then delegates an independent subtask to a child.
-
-    The child should succeed despite having no knowledge of the parent's
-    earlier file creation — it gets fresh context with only its own task.
-    """
-    trajectory = run_agent(
-        "First, write 'parent data' to parent.txt yourself. "
-        "Then delegate to a subagent: have it write 'child data' to child.txt.",
-        max_steps=10,
-        enable_hitl=False,
-    )
-
-    task_calls = get_task_calls(trajectory)
-    assert len(task_calls) >= 1, "Expected at least 1 task delegation"
-    assert (workspace / "parent.txt").exists(), "parent.txt should exist"
-    assert "parent data" in (workspace / "parent.txt").read_text()
-    assert (workspace / "child.txt").exists(), "child.txt should exist"
-    assert "child data" in (workspace / "child.txt").read_text()
+def test_extract_final_response_finds_last_assistant():
+    """Should return the last assistant message with content."""
+    trajectory = {
+        "messages": [
+            {"role": "system", "content": "You are an agent."},
+            {"role": "user", "content": "Do something."},
+            {"role": "assistant", "content": "First response."},
+            {"role": "assistant", "content": None, "tool_calls": [{}]},
+            {"role": "tool", "tool_call_id": "1", "content": "tool output"},
+            {"role": "assistant", "content": "Final answer."},
+        ]
+    }
+    assert _extract_final_response(trajectory) == "Final answer."
 
 
-def test_multiple_delegations(workspace):
-    """Parent delegates multiple independent subtasks sequentially."""
-    trajectory = run_agent(
-        "Delegate each of these to a separate subagent: "
-        "1) write 'one' to first.txt, "
-        "2) write 'two' to second.txt, "
-        "3) write 'three' to third.txt.",
-        max_steps=20,
-        enable_hitl=False,
-    )
+def test_extract_final_response_skips_none_content():
+    """Should skip assistant messages with no text content."""
+    trajectory = {
+        "messages": [
+            {"role": "assistant", "content": None},
+            {"role": "assistant", "content": "The real answer."},
+        ]
+    }
+    assert _extract_final_response(trajectory) == "The real answer."
 
-    task_calls = get_task_calls(trajectory)
-    assert len(task_calls) >= 2, "Expected at least 2 task delegations"
 
-    assert (workspace / "first.txt").exists(), "first.txt should exist"
-    assert (workspace / "first.txt").read_text().strip() == "one"
-    assert (workspace / "second.txt").exists(), "second.txt should exist"
-    assert (workspace / "second.txt").read_text().strip() == "two"
-    assert (workspace / "third.txt").exists(), "third.txt should exist"
-    assert (workspace / "third.txt").read_text().strip() == "three"
+def test_extract_final_response_skips_empty_string():
+    """Should skip assistant messages with empty string content."""
+    trajectory = {
+        "messages": [
+            {"role": "assistant", "content": ""},
+            {"role": "assistant", "content": "Real answer."},
+        ]
+    }
+    assert _extract_final_response(trajectory) == "Real answer."
+
+
+def test_extract_final_response_all_empty_returns_fallback():
+    """Should return fallback when all assistant messages have empty content."""
+    trajectory = {
+        "messages": [
+            {"role": "assistant", "content": ""},
+            {"role": "assistant", "content": None},
+        ]
+    }
+    assert "no text response" in _extract_final_response(trajectory).lower()
+
+
+def test_extract_final_response_no_assistant():
+    """Should return fallback when no assistant message has content."""
+    trajectory = {
+        "messages": [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "task"},
+        ]
+    }
+    assert "no text response" in _extract_final_response(trajectory).lower()
+
+
+def test_task_tool_registered():
+    """The task tool should be in TOOLS and DISPATCH."""
+    names = {t["function"]["name"] for t in TOOLS}
+    assert "task" in names
+    assert "task" in DISPATCH
+
+
+def test_tools_include_all_ch03_tools():
+    """ch04 TOOLS should include all ch03 tools plus task."""
+    names = {t["function"]["name"] for t in TOOLS}
+    assert names >= {"bash", "read", "write", "edit", "glob", "grep", "websearch", "todo", "task"}
