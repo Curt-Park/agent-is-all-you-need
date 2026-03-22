@@ -1,4 +1,4 @@
-from ch_05_skills_agent import run_agent
+from ch_05_skills import run_agent
 from tests.agent.conftest import get_skill_calls, get_task_calls
 
 
