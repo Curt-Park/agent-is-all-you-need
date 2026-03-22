@@ -53,3 +53,8 @@ def get_task_calls(trajectory):
 def get_skill_calls(trajectory):
     """Extract parsed arguments from all load_skill tool calls in the trajectory."""
     return [c for c in get_tool_calls(trajectory) if c["name"] == "load_skill"]
+
+
+def get_compact_calls(trajectory):
+    """Extract parsed arguments from all compact tool calls in the trajectory."""
+    return [c for c in get_tool_calls(trajectory) if c["name"] == "compact"]
